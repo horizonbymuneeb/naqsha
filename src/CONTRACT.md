@@ -262,6 +262,44 @@ src/repair/index.mjs    -> export function repair(ir) : {ir, changes}           
 - Unsupported directives (classDef, click, style, direction inside subgraph) are
   warnings, not failures.
 
+v1.2 native dialects (same `convertMermaid()` contract):
+- `erDiagram` → `type: "erd"`. Entities: `NAME`, `"Quoted Name"` or
+  `NAME["Entity label"]` (alias); an attribute block `NAME { … }` carries
+  `<type> <name> [PK|FK|UK]` rows (comma key lists allowed, `varchar(255)`,
+  `text[]` and hyphenated type words preserved); a quoted `"entity.column"`
+  attribute comment becomes attribute `ref` when the target entity and column
+  exist. Relationships are `<entity> <card> <entity> : "label"`; the two card
+  tokens use `||`/`o|`/`|o` for "one" and `}|`/`}o`/`|{`/`o{` for "many", with
+  `--` or `..` between them. Cardinality is `1:1`, `1:n` or `n:m`; a
+  many-to-one relation is emitted as `1:n` from the "one" side (warning).
+  `direction TB|LR` inside the body maps to IR `direction`. An entity without
+  an attribute block gets a placeholder `id uuid` attribute (warning) so the IR
+  stays valid. Self-relationships, duplicate relations and >12 columns are
+  warned about, never fatal.
+- `classDiagram` → `type: "class"`. Classes: `class Name`,
+  `class Name["Label"]` (alias) and `class Name { … }` bodies; body lines are
+  members preserved verbatim (one line each, 12 max, 60 characters each);
+  `<<interface>>`/`<<abstract>>` may sit inside the body or on their own line
+  `<<interface>> Name`; `Name : member` is the out-of-body member shorthand.
+  Relations and their IR `kind`: `A <|-- B` and `A --|> B` → `extends`,
+  `A <|.. B` and `A ..|> B` → `implements` (the hollow triangle/`|` operand is
+  the parent, so `<|--`/`<|..` point from the right operand to the left),
+  `*--`/`--*` → `composition`, `-->`/`--`/`<--` → `association`,
+  `..>`/`<..`/`..` → `dependency`; `o--`/`--o` (aggregation) degrades to
+  `association` with a warning, and multiplicity tokens (`"1"`/`"*"`) have no
+  IR field and are dropped with a warning. `direction TB|LR` maps to IR
+  `direction`.
+- `type: "auto"` detects `erDiagram` → `erd` and `classDiagram` → `class`. A
+  legacy flowchart/sequence input forced to `erd`/`class` is a
+  `convert/type-mismatch` error; an ERD/class input forced to a legacy type
+  keeps its native type with a `convert/type-mismatch` warning (attributes and
+  members have no legacy representation).
+- Round trip: `toMermaid(ir)` exports `erDiagram`/`classDiagram` natively, and
+  `convertMermaid(toMermaid(ir).mermaid).ir` keeps the type, node/edge counts
+  and order, labels, attributes (`name`/`type`/`key`), members, stereotypes,
+  cardinalities and class relation kinds. Attribute `ref` has no Mermaid ERD
+  equivalent and is reported by the exporter as a warning.
+
 ### repair() rules
 - Deterministic, idempotent. Repairs: unknown top-level/node/edge/group keys
   (drop + change note), missing `kind` (infer from id/label keywords, else

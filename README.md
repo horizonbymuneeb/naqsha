@@ -48,6 +48,9 @@ Then ask your agent:
 The agent reads the skill, writes one JSON candidate, validates it, and hands you
 a single interactive HTML page.
 
+Full usage guide — prompts per scenario, CLI recipes, the ten-type picker and
+troubleshooting: [docs/USAGE.md](https://github.com/horizonbymuneeb/naqsha/blob/master/docs/USAGE.md).
+
 The examples in this repository are **real**: every artifact under `docs/`
 describes a production diagram engine — its module
 layout, its delivery gates, its typed IR, its release history and its measured
@@ -81,6 +84,7 @@ Every file below is a single self-contained HTML rendered from a JSON file in
 
 | Artifact | What it shows | Command that made it |
 |---|---|---|
+| [`docs/demo-naqsha-repo.html`](docs/demo-naqsha-repo.html) | **This project mapping itself**, end to end: skill contract, CLI, validator, render pipeline, release gates and distribution — **with a 4-step guided tour** — press `→` or Space | `naqsha render examples/naqsha-repo.architecture.json docs/demo-naqsha-repo.html` |
 | [`docs/demo-architecture.html`](docs/demo-architecture.html) | A v3.2 engine runtime: agent surface, core, delivery gates, host adapter, **with a 4-step guided tour** — press `→` or Space | `naqsha render examples/engine-repo.architecture.json docs/demo-architecture.html` |
 | [`docs/demo-diff.html`](docs/demo-diff.html) | **Diagram diff** of v3.1 → v3.2: the mode that landed is ringed green, changed labels are marked, counts sit in the header | `naqsha diff examples/engine-repo.v31.architecture.json examples/engine-repo.architecture.json docs/demo-diff.html` |
 | [`docs/demo-generate.sequence.html`](docs/demo-generate.sequence.html) | A real generate run: agent → SKILL.md → CLI → validators → renderer → browser gate → artifact | `naqsha render examples/generate-run.sequence.json docs/demo-generate.sequence.html` |

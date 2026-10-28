@@ -9,6 +9,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { convertMermaid } from "../src/convert/mermaid.mjs";
+import { toMermaid } from "../src/convert/to-mermaid.mjs";
 import { validate, DIAGRAM_TYPES, DIRECTIONS, ID_PATTERN } from "../src/validate/index.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -257,7 +258,7 @@ test("invalid or unsupported input returns errors with 1-based line numbers", ()
   const cases = [
     { text: "", code: "convert/empty" },
     { text: "   \n \t \n", code: "convert/empty" },
-    { text: "classDiagram\n  A --> B", code: "convert/unsupported-diagram" },
+    { text: "gantt\n  title A plan\n  section One\n  Task :a1, 2026-01-01, 30d", code: "convert/unsupported-diagram" },
     { text: "flowchart TD\n subgraph x\n end\n", code: "convert/no-nodes" },
     { text: "hello there", code: "convert/unknown-diagram" },
     { text: null, code: "convert/input" },
@@ -376,5 +377,329 @@ test("result shape is stable for success and failure", () => {
     assert.equal(typeof result.ok, "boolean");
     assert.ok(Array.isArray(result.errors));
     assert.ok(Array.isArray(result.warnings));
+  }
+});
+
+/* ------------------------------------------------------------------------- */
+/* v1.2 dialects: erDiagram and classDiagram                                 */
+/* ------------------------------------------------------------------------- */
+
+const ERD_SAMPLE = `---
+title: Shop schema
+subtitle: customers, orders and their lines
+---
+erDiagram
+  direction LR
+  CUSTOMER["Customer Table"] {
+    uuid id PK
+    text email UK
+    uuid referrer_id FK "customer.id"
+  }
+  ORDER {
+    uuid id PK
+    uuid customer_id FK
+    numeric(10,2) total
+    timestamptz created_at
+    text[] tags
+  }
+  LINE-ITEM {
+    uuid order_id FK
+    text sku
+    char-varying note
+  }
+  CUSTOMER ||--o{ ORDER : "places"
+  ORDER ||--|{ LINE-ITEM : "contains"
+  CUSTOMER }o--o{ ORDER : "also views"
+  ORDER ||--|| LINE-ITEM : "one to one"
+`;
+
+const CLASS_SAMPLE = `---
+title: Engine Modules
+subtitle: who calls whom inside the engine
+---
+classDiagram
+  direction TB
+  class Renderer {
+    <<interface>>
+    + render(ir): string
+  }
+  class Native["NativeRenderer"] {
+    + render(ir): string
+    - layout: LayoutPlan
+  }
+  <<abstract>> Base
+  Renderer : + mode: string
+  <<interface>> Validator
+  Renderer <|.. Native
+  Base <|-- Native
+  Deliverer *-- Renderer
+  Deliverer --> Gate : uses
+  Gate ..> Renderer
+`;
+
+test("erDiagram: entities, aliases, attributes, keys and cardinality", () => {
+  const result = convertMermaid(ERD_SAMPLE);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.equal(result.errors.length, 0);
+  const ir = result.ir;
+
+  assert.equal(ir.type, "erd");
+  assert.equal(ir.direction, "LR");
+  assert.equal(ir.title, "Shop schema");
+  assert.equal(ir.subtitle, "customers, orders and their lines");
+  assert.deepEqual(ir.nodes.map((node) => node.id), ["customer", "order", "line-item"]);
+  assert.deepEqual(ir.nodes.map((node) => node.label), ["Customer Table", "ORDER", "LINE-ITEM"]);
+
+  assert.deepEqual(ir.nodes[0].attributes, [
+    { name: "id", type: "uuid", key: "pk" },
+    { name: "email", type: "text", key: "unique" },
+    { name: "referrer_id", type: "uuid", key: "fk", ref: "customer.id" },
+  ]);
+  assert.deepEqual(ir.nodes[1].attributes.map((attr) => [attr.name, attr.type]), [
+    ["id", "uuid"],
+    ["customer_id", "uuid"],
+    ["total", "numeric(10,2)"],
+    ["created_at", "timestamptz"],
+    ["tags", "text[]"],
+  ]);
+  assert.equal(ir.nodes[2].attributes[2].type, "char-varying");
+  for (const node of ir.nodes) assert.equal(node.kind, undefined, "ERD nodes do not need a kind");
+
+  assert.deepEqual(ir.edges.map((edge) => [edge.from, edge.to, edge.label || "", edge.cardinality]), [
+    ["customer", "order", "places", "1:n"],
+    ["order", "line-item", "contains", "1:n"],
+    ["customer", "order", "also views", "n:m"],
+    ["order", "line-item", "one to one", "1:1"],
+  ]);
+  assertCleanWarnings(result);
+  assert.equal(validate(ir).ok, true, JSON.stringify(validate(ir).errors));
+});
+
+test("erDiagram: implicit entities, many-to-one swap, self-relations and limits", () => {
+  const implicit = convertMermaid("erDiagram\n  A ||--o{ B : x\n  B { uuid id PK }");
+  assert.equal(implicit.ok, true);
+  assert.ok(implicit.warnings.some((warning) => warning.code === "convert/erd-entity"));
+  assert.deepEqual(implicit.ir.nodes[0].attributes, [{ name: "id", type: "uuid" }]);
+  assert.equal(validate(implicit.ir).ok, true);
+
+  const swapped = convertMermaid("erDiagram\n  ORDER }o--|| CUSTOMER : belongs\n  ORDER { uuid id PK }\n  CUSTOMER { uuid id PK }");
+  assert.deepEqual(swapped.ir.edges.map((edge) => [edge.from, edge.to, edge.cardinality]), [["customer", "order", "1:n"]]);
+  assert.ok(swapped.warnings.some((warning) => warning.code === "convert/erd-direction"));
+  assert.equal(validate(swapped.ir).ok, true);
+
+  const self = convertMermaid("erDiagram\n  PERSON }o--o{ PERSON : manages\n  PERSON { uuid id PK }");
+  assert.equal(self.ok, true);
+  assert.equal(self.ir.edges.length, 0);
+  assert.ok(self.warnings.some((warning) => warning.code === "convert/self-edge"));
+
+  const rows = Array.from({ length: 13 }, (_, index) => `    text col_${index}`).join("\n");
+  const limited = convertMermaid(`erDiagram\n  A {\n${rows}\n  }\n  A ||--|| B : x`);
+  assert.equal(limited.ir.nodes[0].attributes.length, 12);
+  assert.ok(limited.warnings.some((warning) => warning.code === "convert/erd-attributes"));
+  assert.equal(validate(limited.ir).ok, true);
+
+  const merged = convertMermaid("erDiagram\n  A { uuid id PK }\n  A { text name }");
+  assert.equal(merged.ir.nodes.length, 1);
+  assert.equal(merged.ir.nodes[0].attributes.length, 2);
+  assert.ok(merged.warnings.some((warning) => warning.code === "convert/unsupported"));
+  assert.equal(validate(merged.ir).ok, true);
+});
+
+test("classDiagram: classes, members, stereotypes and relation direction", () => {
+  const result = convertMermaid(CLASS_SAMPLE);
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  const ir = result.ir;
+
+  assert.equal(ir.type, "class");
+  assert.equal(ir.direction, "TB");
+  assert.equal(ir.title, "Engine Modules");
+  assert.deepEqual(ir.nodes.map((node) => node.id), ["renderer", "native", "base", "validator", "deliverer", "gate"]);
+  assert.deepEqual(ir.nodes.map((node) => node.label), ["Renderer", "NativeRenderer", "Base", "Validator", "Deliverer", "Gate"]);
+  assert.deepEqual(ir.nodes.map((node) => node.stereotype || null), ["interface", null, "abstract", "interface", null, null]);
+  assert.deepEqual(ir.nodes[0].members, ["+ render(ir): string", "+ mode: string"]);
+  assert.deepEqual(ir.nodes[1].members, ["+ render(ir): string", "- layout: LayoutPlan"]);
+  assert.equal(ir.nodes[2].members, undefined);
+
+  assert.deepEqual(ir.edges.map((edge) => [edge.from, edge.to, edge.kind, edge.label || ""]), [
+    ["native", "renderer", "implements", ""],
+    ["native", "base", "extends", ""],
+    ["deliverer", "renderer", "composition", ""],
+    ["deliverer", "gate", "association", "uses"],
+    ["gate", "renderer", "dependency", ""],
+  ]);
+  assertCleanWarnings(result);
+  assert.equal(validate(ir).ok, true, JSON.stringify(validate(ir).errors));
+});
+
+test("classDiagram: every relation operator maps to the documented kind and direction", () => {
+  const table = [
+    ["<|--", "extends", "b", "a"],
+    ["<|..", "implements", "b", "a"],
+    ["--|>", "extends", "a", "b"],
+    ["..|>", "implements", "a", "b"],
+    ["*--", "composition", "a", "b"],
+    ["--*", "composition", "b", "a"],
+    ["o--", "association", "a", "b"],
+    ["--o", "association", "b", "a"],
+    ["-->", "association", "a", "b"],
+    ["<--", "association", "b", "a"],
+    ["..>", "dependency", "a", "b"],
+    ["<..", "dependency", "b", "a"],
+    ["--", "association", "a", "b"],
+    ["..", "dependency", "a", "b"],
+  ];
+  for (const [operator, kind, from, to] of table) {
+    const result = convertMermaid(`classDiagram\n  A ${operator} B : rel`);
+    assert.equal(result.ok, true, agentFor(result));
+    assert.equal(validate(result.ir).ok, true, `${operator}: ${JSON.stringify(validate(result.ir).errors)}`);
+    assert.deepEqual(result.ir.edges.map((edge) => [edge.from, edge.to, edge.kind, edge.label]), [[from, to, kind, "rel"]], `${operator} should mean ${kind}`);
+  }
+
+  const multiplicity = convertMermaid('classDiagram\n  A "1" --> "*" B : calls');
+  assert.equal(multiplicity.ok, true);
+  assert.deepEqual(multiplicity.ir.edges.map((edge) => [edge.from, edge.to, edge.kind]), [["a", "b", "association"]]);
+  assert.ok(multiplicity.warnings.some((warning) => warning.code === "convert/class-multiplicity"));
+
+  const aggregation = convertMermaid("classDiagram\n  A o-- B : has");
+  assert.equal(aggregation.ir.edges[0].kind, "association");
+  assert.ok(aggregation.warnings.some((warning) => warning.code === "convert/class-aggregation"));
+});
+
+function agentFor(result) {
+  return result.ok ? "ok" : JSON.stringify(result.errors);
+}
+
+test("classDiagram: members, generics, junk and limits", () => {
+  const generic = convertMermaid("classDiagram\n  class List~T~ {\n    + add(T item) void\n  }");
+  assert.equal(generic.ok, true);
+  assert.equal(generic.ir.nodes[0].id, "list");
+  assert.equal(generic.ir.nodes[0].label, "List<T>");
+  assert.equal(validate(generic.ir).ok, true);
+
+  const members = Array.from({ length: 14 }, (_, index) => `    + method${index}(): void`).join("\n");
+  const limited = convertMermaid(`classDiagram\n  class Big {\n${members}\n  }`);
+  assert.equal(limited.ir.nodes[0].members.length, 12);
+  assert.ok(limited.warnings.some((warning) => warning.code === "convert/class-members"));
+
+  const long = convertMermaid(`classDiagram\n  class Long {\n    + ${"veryLongMethodName".repeat(5)}(): void\n  }`);
+  assert.ok(chars(long.ir.nodes[0].members[0]) <= 60);
+  assert.ok(long.warnings.some((warning) => warning.code === "convert/class-members"));
+
+  const junk = convertMermaid("classDiagram\n  class A {\n    + x: int\n  }\n  note for A \"hello\"\n  style A fill:#f00\n  classDef bad fill:#f00\n  A <|-- B");
+  assert.equal(junk.ok, true);
+  assert.equal(validate(junk.ir).ok, true);
+  const codes = warningCodes(junk);
+  assert.ok(codes.includes("convert/unsupported"));
+
+  const self = convertMermaid("classDiagram\n  class A\n  A <|-- A");
+  assert.equal(self.ok, true);
+  assert.equal(self.ir.edges.length, 0);
+  assert.ok(self.warnings.some((warning) => warning.code === "convert/self-edge"));
+});
+
+test("v1.2 dialects: malformed input warns and never throws", () => {
+  const inputs = [
+    "erDiagram",
+    "erDiagram\n  }",
+    "erDiagram\n  A ----> B : x",
+    "erDiagram\n  A {\n    uuid id PK",
+    "erDiagram\n  @@@ ###",
+    "erDiagram\n  A { }",
+    "erDiagram\n  A ||--o{ B : x\n  A { uuid id PK }",
+    "classDiagram",
+    "classDiagram\n  class { }",
+    "classDiagram\n  <<interface>>",
+    "classDiagram\n  ####\n  A <|-- B",
+    "classDiagram\n  class A {\n    + unbalanced((",
+  ];
+  for (const text of inputs) {
+    let result;
+    assert.doesNotThrow(() => {
+      result = convertMermaid(text);
+    }, `threw on ${JSON.stringify(text)}`);
+    assert.deepEqual(Object.keys(result).sort(), ["errors", "ir", "ok", "warnings"]);
+    assert.equal(typeof result.ok, "boolean");
+    assert.ok(Array.isArray(result.errors));
+    assert.ok(Array.isArray(result.warnings));
+    for (const entry of [...result.errors, ...result.warnings]) {
+      assert.ok(Number.isInteger(entry.line) && entry.line >= 1, `line must be 1-based: ${JSON.stringify(entry)}`);
+    }
+    if (result.ok) assert.equal(validate(result.ir).ok, true, `${JSON.stringify(text)} produced invalid IR: ${JSON.stringify(validate(result.ir).errors)}`);
+  }
+});
+
+test("type override: v1.2 dialects keep their native type with a warning", () => {
+  const erdForced = convertMermaid("erDiagram\n  A { uuid id PK }", { type: "workflow" });
+  assert.equal(erdForced.ir.type, "erd");
+  assert.ok(warningCodes(erdForced).includes("convert/type-mismatch"));
+
+  const classForced = convertMermaid("classDiagram\n  class A", { type: "architecture" });
+  assert.equal(classForced.ir.type, "class");
+  assert.ok(warningCodes(classForced).includes("convert/type-mismatch"));
+
+  const flowToErd = convertMermaid("flowchart TD\n  A --> B", { type: "erd" });
+  assert.equal(flowToErd.ok, false);
+  assert.equal(flowToErd.errors[0].code, "convert/type-mismatch");
+
+  const seqToClass = convertMermaid("sequenceDiagram\n  A->>B: hi", { type: "class" });
+  assert.equal(seqToClass.ok, false);
+  assert.equal(seqToClass.errors[0].code, "convert/type-mismatch");
+});
+
+test("v1.2 conversion is deterministic", () => {
+  for (const text of [ERD_SAMPLE, CLASS_SAMPLE]) {
+    assert.equal(JSON.stringify(convertMermaid(text)), JSON.stringify(convertMermaid(text)));
+  }
+});
+
+/* ------------------------------------------------------------------------- */
+/* Round trip: examples -> native Mermaid -> IR                              */
+/* ------------------------------------------------------------------------- */
+
+const ROUND_TRIP_CASES = [
+  { file: "ir-schema.erd.json", dialect: "erDiagram", type: "erd" },
+  { file: "engine-modules.class.json", dialect: "classDiagram", type: "class" },
+];
+
+test("round-trips the ERD and class examples through native Mermaid", () => {
+  for (const { file, dialect, type } of ROUND_TRIP_CASES) {
+    const ir = JSON.parse(fs.readFileSync(path.join(ROOT, "examples", file), "utf8"));
+    assert.equal(ir.type, type);
+    const exported = toMermaid(ir);
+    assert.equal(exported.ok, true, `${file}: export failed ${JSON.stringify(exported.warnings)}`);
+    assert.match(exported.mermaid, new RegExp(`^${dialect}$`, "m"), `${file}: expected a native ${dialect} export`);
+    assert.doesNotMatch(exported.mermaid, /^flowchart /m, `${file}: export fell back to a flowchart`);
+
+    const back = convertMermaid(exported.mermaid);
+    assert.equal(back.ok, true, `${file}: ingest rejected the export: ${JSON.stringify(back.errors)}`);
+    const backIr = back.ir;
+    assert.equal(backIr.type, type, `${file}: type changed`);
+    assert.equal(validate(backIr).ok, true, `${file}: round-tripped IR is invalid: ${JSON.stringify(validate(backIr).errors)}`);
+
+    assert.equal(backIr.title, ir.title, `${file}: title should survive the front matter`);
+    if (ir.subtitle) assert.equal(backIr.subtitle, ir.subtitle, `${file}: subtitle should survive the front matter`);
+    if (ir.direction) assert.equal(backIr.direction, ir.direction, `${file}: direction should survive`);
+    assert.deepEqual(backIr.nodes.map((node) => node.id), ir.nodes.map((node) => node.id), `${file}: node ids and order changed`);
+    assert.deepEqual(backIr.nodes.map((node) => node.label), ir.nodes.map((node) => node.label), `${file}: node labels changed`);
+    assert.equal((backIr.edges || []).length, (ir.edges || []).length, `${file}: edge count changed`);
+
+    if (type === "erd") {
+      const attrs = (source) => source.nodes.map((node) => node.attributes.map((attr) => [attr.name, attr.type, attr.key ?? null]));
+      assert.deepEqual(attrs(backIr), attrs(ir), `${file}: attributes (name/type/key) changed`);
+      assert.deepEqual(
+        backIr.edges.map((edge) => [edge.from, edge.to, edge.label || "", edge.cardinality]),
+        ir.edges.map((edge) => [edge.from, edge.to, edge.label || "", edge.cardinality]),
+        `${file}: relationships or cardinalities changed`,
+      );
+    } else {
+      assert.deepEqual(backIr.nodes.map((node) => node.members || []), ir.nodes.map((node) => node.members || []), `${file}: members changed`);
+      assert.deepEqual(backIr.nodes.map((node) => node.stereotype || null), ir.nodes.map((node) => node.stereotype || null), `${file}: stereotypes changed`);
+      assert.deepEqual(
+        backIr.edges.map((edge) => [edge.from, edge.to, edge.kind ?? "association", edge.label || ""]),
+        ir.edges.map((edge) => [edge.from, edge.to, edge.kind ?? "association", edge.label || ""]),
+        `${file}: relation kinds, labels or order changed`,
+      );
+    }
+    assert.equal(JSON.stringify(convertMermaid(exported.mermaid)), JSON.stringify(back), `${file}: ingest is not deterministic`);
   }
 });

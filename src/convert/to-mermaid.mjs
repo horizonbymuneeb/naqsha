@@ -1,11 +1,10 @@
 /**
  * Naqsha — Mermaid export (IR → Mermaid), owner: convert.
  *
- * `toMermaid(ir)` turns Naqsha IR v1 (`architecture` | `workflow` | `sequence`)
- * back into Mermaid source that `convertMermaid()` reads into the same diagram:
- * the node-label multiset, node count, edge count and declaration order survive
- * the round trip. Output is deterministic, newline-terminated and has no
- * trailing whitespace.
+ * `toMermaid(ir)` turns Naqsha IR v1 back into the closest Mermaid dialect that
+ * `convertMermaid()` reads into the same diagram: the node-label multiset, node
+ * count, edge count and declaration order survive the round trip. Output is
+ * deterministic, newline-terminated and has no trailing whitespace.
  *
  *   architecture / workflow  ->  front matter + `flowchart TD|LR`
  *     one `subgraph` per IR group, node shape from `kind` (see SHAPES below),
@@ -19,6 +18,20 @@
  *     with only one endpoint inside is left outside with a warning (Mermaid
  *     blocks cannot span it); a non-adjacent group is emitted as several
  *     blocks so message order stays intact.
+ *   erd  ->  front matter + `erDiagram`
+ *     one entity block per node with its attribute rows (`type name PK|FK|UK`),
+ *     then one relation per edge with the IR cardinality token
+ *     (`1:1` -> `||--||`, `1:n` -> `||--o{`, `n:m` -> `}o--o{`) and the edge
+ *     label as a quoted role after `:` (unlabelled -> `: ""`).
+ *   class  ->  front matter + `classDiagram`
+ *     one class per node with its member rows verbatim, an explicit
+ *     `<<interface>>`/`<<abstract>>` line when the IR says so, then one
+ *     relation per edge: extends `${to} <|-- ${from}` and implements
+ *     `${to} <|.. ${from}` point at the parent, association `-->`,
+ *     composition `*--` and dependency `..>` keep the IR direction.
+ *   tree / timeline / waterfall / dataflow / lifecycle  ->  flowchart fallback
+ *     (those five have no Mermaid dialect); a `to-mermaid/type-simplified`
+ *     warning says the type-specific fields were dropped.
  *
  * Escaping. Mermaid-safe output is a hard requirement, verified against a real
  * Mermaid 11 renderer as well as against our own ingest:
@@ -70,6 +83,8 @@ export function toMermaid(ir, options = {}) {
     };
   }
   if (ir.type === "sequence") return exportSequence(ir, settings);
+  if (ir.type === "erd") return exportErd(ir, settings);
+  if (ir.type === "class") return exportClassDiagram(ir, settings);
   if (FLOW_TYPES.has(ir.type)) return exportFlowchart(ir, settings);
   if (DIAGRAM_TYPES.includes(ir.type)) return exportFlowchart(ir, settings, ir.type);
   return {
@@ -78,7 +93,7 @@ export function toMermaid(ir, options = {}) {
     warnings: [
       {
         code: "to-mermaid/unsupported-type",
-        message: `unsupported diagram type ${JSON.stringify(ir.type)} — supported types are ${DIAGRAM_TYPES.join(", ")}`,
+        message: `cannot export ${JSON.stringify(ir.type)}: the IR "type" must be one of ${DIAGRAM_TYPES.join(", ")}; anything else is not a Naqsha diagram`,
       },
     ],
   };
@@ -129,6 +144,21 @@ const FLOW_ARROWS = {
   security: "==>",
   message: "==>",
 };
+
+/** IR cardinality -> Mermaid ER relation token (the from-side marker first). */
+const ER_CARDINALITY = { "1:1": "||--||", "1:n": "||--o{", "n:m": "}o--o{" };
+/** Used for an invalid IR so the file still parses; warned about. */
+const ER_CARDINALITY_DEFAULT = "1:n";
+/** IR attribute key -> Mermaid ER row mark. */
+const ER_ATTRIBUTE_MARK = { pk: "PK", fk: "FK", unique: "UK" };
+/** Relation tokens for the three class kinds whose IR direction is literal;
+ * extends/implements are emitted reversed (marker on the parent side). */
+const CLASS_RELATION = { association: "-->", composition: "*--", dependency: "..>" };
+/** Ids a Mermaid er/class parser would read as a directive get an `n_` prefix. */
+const DIALECT_RESERVED = new Set([
+  "direction", "erdiagram", "class", "classdiagram", "namespace", "note",
+  "end", "style", "click", "callback", "link", "cssclass",
+]);
 
 /** Sequence arrow per IR edge kind. `security`/`data` are unavoidable
  * approximations: Mermaid sequence arrows have no security/data form. */
@@ -190,6 +220,16 @@ function newStats() {
     fragmentsOverlap: 0,
     fragmentPartialMessages: 0,
     fragmentIdleMembers: 0,
+    groupsDropped: 0,
+    erdAttributesMissing: 0,
+    erdAttrSanitized: 0,
+    erdRefDropped: 0,
+    erdKeyIgnored: 0,
+    erdCardinalityDefault: 0,
+    classMemberSanitized: 0,
+    classEdgeKindMapped: 0,
+    stereotypeIgnored: 0,
+    labelSanitized: 0,
   };
 }
 
@@ -347,6 +387,10 @@ function buildNodes(ir, settings, stats, reserved) {
       label,
       kind,
       group: typeof node.group === "string" && node.group ? node.group : null,
+      // Payload for the relational dialects; ignored by flowchart/sequence.
+      attributes: Array.isArray(node.attributes) ? node.attributes : null,
+      members: Array.isArray(node.members) ? node.members : null,
+      stereotype: typeof node.stereotype === "string" ? node.stereotype : null,
     };
     list.push(record);
     byRawId.set(rawId, record);
@@ -482,7 +526,10 @@ function flowEdgeLabel(label, stats) {
   }
   const escaped = escapeEntities(text);
   if (!escaped) return "";
-  const bare = !escaped.includes(";") && balancedDelimiters(escaped);
+  // A bare pipe label cannot hold `;` (statement separator) or any bracket — the
+  // Mermaid lexer treats `(`/`[`/`{` as shape syntax there; quoting fixes both and
+  // renders without the quotes.
+  const bare = !escaped.includes(";") && !/[[\]{}()]/.test(escaped);
   return bare ? `|${escaped}|` : `|"${escaped}"|`;
 }
 
@@ -718,6 +765,251 @@ function exportSequence(ir, settings) {
   return { ok: true, mermaid: `${lines.join("\n")}\n`, warnings };
 }
 
+
+/* ------------------------------------------------------------------------- */
+/* ERD (erDiagram)                                                           */
+/* ------------------------------------------------------------------------- */
+
+/** One Mermaid attribute word: letters, digits, `_`, `-`, `()` and `[]` are
+ * accepted by the ER grammar; anything else is folded to `_` (warned). */
+function mermaidWord(raw, fallback) {
+  const original = String(raw ?? "").trim();
+  let word = original
+    .replace(/[^A-Za-z0-9_\-()[\]]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!word) word = fallback;
+  else if (/^[0-9]/.test(word)) word = `${fallback}_${word}`;
+  return { word, changed: word !== original };
+}
+
+/** Text inside a Mermaid quoted dialect label (entity/class alias, ER role).
+ * Quotes and backslashes cannot be carried by these quoted strings, so they
+ * degrade to `'`/`/` with a warning instead of breaking the file. */
+function quotedDialectText(text, stats) {
+  let value = text;
+  if (value.includes('"') || value.includes("\\")) {
+    value = value.replace(/\\/g, "/").replace(/"/g, "'");
+    stats.labelSanitized += 1;
+  }
+  return value;
+}
+
+/** `id["Display label"]` only when the label says something the id does not. */
+function dialectAlias(node, stats) {
+  const label = cleanText(node.label);
+  if (hasControlChars(node.label)) stats.labelCollapsed += 1;
+  if (label === node.id) return "";
+  return `["${quotedDialectText(label, stats)}"]`;
+}
+
+/** `TB`/`LR` for the dialects that accept a direction line; null when absent. */
+function dialectDirection(ir, stats) {
+  if (typeof ir.direction !== "string") return null;
+  if (ir.direction === "TB" || ir.direction === "LR") return ir.direction;
+  stats.directionIgnored += 1;
+  return null;
+}
+
+/** Edges shared by erd/class: endpoints, dedupe and status flags only. */
+function collectRelationEdges(ir, model, stats) {
+  const rawEdges = Array.isArray(ir.edges) ? ir.edges : [];
+  const seen = new Set();
+  const edges = [];
+  for (const edge of rawEdges) {
+    if (!isObj(edge)) {
+      stats.edgesSkipped += 1;
+      continue;
+    }
+    const from = model.byRawId.get(edge.from);
+    const to = model.byRawId.get(edge.to);
+    if (!from || !to) {
+      stats.edgesSkipped += 1;
+      continue;
+    }
+    if (from.rawId === to.rawId) {
+      stats.selfEdges += 1;
+      continue;
+    }
+    const rawLabel = typeof edge.label === "string" ? edge.label : "";
+    if (hasControlChars(rawLabel)) stats.labelCollapsed += 1;
+    const label = cleanText(rawLabel);
+    const key = `${from.rawId}\u0000${to.rawId}\u0000${label}`;
+    if (seen.has(key)) {
+      stats.duplicateEdges += 1;
+      continue;
+    }
+    seen.add(key);
+    if (typeof edge.status === "string" && STATUSES.has(edge.status)) stats.statusEdges += 1;
+    edges.push({
+      from,
+      to,
+      label,
+      kind: typeof edge.kind === "string" ? edge.kind : null,
+      cardinality: typeof edge.cardinality === "string" ? edge.cardinality : null,
+    });
+  }
+  return edges;
+}
+
+function erdAttributeLine(attr, stats) {
+  const type = mermaidWord(attr.type, "text");
+  const name = mermaidWord(attr.name, "column");
+  if (type.changed || name.changed) stats.erdAttrSanitized += 1;
+  if (typeof attr.ref === "string" && attr.ref.trim()) stats.erdRefDropped += 1;
+  if (attr.key !== undefined && attr.key !== null && !ER_ATTRIBUTE_MARK[attr.key]) stats.erdKeyIgnored += 1;
+  const mark = ER_ATTRIBUTE_MARK[attr.key];
+  return `${type.word} ${name.word}${mark ? ` ${mark}` : ""}`;
+}
+
+function exportErd(ir, settings) {
+  const warnings = [];
+  const stats = newStats();
+  const model = buildNodes(ir, settings, stats, DIALECT_RESERVED);
+  if (model.list.length === 0) {
+    pushWarning(warnings, "to-mermaid/no-nodes", "the IR has no usable entities, so there is nothing to draw");
+    return { ok: false, mermaid: "", warnings };
+  }
+  if (Array.isArray(ir.groups) && ir.groups.length > 0) stats.groupsDropped += ir.groups.length;
+
+  const lines = frontMatter(ir);
+  lines.push("erDiagram");
+  const direction = dialectDirection(ir, stats);
+  if (direction) lines.push(`  direction ${direction}`);
+
+  for (const node of model.list) {
+    const alias = dialectAlias(node, stats);
+    const rows = [];
+    for (const attr of Array.isArray(node.attributes) ? node.attributes : []) {
+      if (!isObj(attr)) {
+        stats.erdAttrSanitized += 1;
+        continue;
+      }
+      rows.push(erdAttributeLine(attr, stats));
+    }
+    if (rows.length === 0) {
+      stats.erdAttributesMissing += 1;
+      rows.push("text id");
+    }
+    lines.push(`  ${node.id}${alias} {`);
+    for (const row of rows) lines.push(`    ${row}`);
+    lines.push("  }");
+  }
+
+  const edges = collectRelationEdges(ir, model, stats);
+  for (const edge of edges) {
+    let cardinality = edge.cardinality && ER_CARDINALITY[edge.cardinality] ? ER_CARDINALITY[edge.cardinality] : null;
+    if (!cardinality) {
+      cardinality = ER_CARDINALITY[ER_CARDINALITY_DEFAULT];
+      stats.erdCardinalityDefault += 1;
+    }
+    const label = `"${quotedDialectText(edge.label, stats)}"`;
+    lines.push(`  ${edge.from.id} ${cardinality} ${edge.to.id} : ${label}`);
+  }
+
+  appendLossWarnings(ir, warnings, stats, { sequence: false });
+  return { ok: true, mermaid: `${lines.join("\n")}\n`, warnings };
+}
+
+/* ------------------------------------------------------------------------- */
+/* Class (classDiagram)                                                      */
+/* ------------------------------------------------------------------------- */
+
+/** One class member row: emitted verbatim when the class grammar can hold it,
+ * with braces folded (they would close the `class { … }` block early). */
+function classMemberText(raw, stats) {
+  let text = cleanText(raw);
+  if (!text) {
+    stats.classMemberSanitized += 1;
+    return "";
+  }
+  let changed = false;
+  if (/[{}]/.test(text)) {
+    text = text.replace(/\{/g, "(").replace(/\}/g, ")");
+    changed = true;
+  }
+  if (/^<<[\s\S]*>>$/.test(text)) {
+    // A member that looks like a stereotype would be swallowed by the parser.
+    text = text.replace(/^<<+/, "((").replace(/>>+$/, "))");
+    changed = true;
+  }
+  if (changed) stats.classMemberSanitized += 1;
+  return text;
+}
+
+/** Relation label on a class line. The class grammar stops the label at `;`
+ * and `:`, so those are folded with a warning; quotes are legal there. */
+function classRelationLabel(text, stats) {
+  if (!text) return "";
+  let value = text;
+  if (/[;:]/.test(value)) {
+    value = value.replace(/;\s*/g, ", ").replace(/:\s*/g, " - ");
+  }
+  if (/[{}]/.test(value)) value = value.replace(/\{/g, "(").replace(/\}/g, ")");
+  if (value !== text) stats.labelSanitized += 1;
+  return value;
+}
+
+function exportClassDiagram(ir, settings) {
+  const warnings = [];
+  const stats = newStats();
+  const model = buildNodes(ir, settings, stats, DIALECT_RESERVED);
+  if (model.list.length === 0) {
+    pushWarning(warnings, "to-mermaid/no-nodes", "the IR has no usable classes, so there is nothing to draw");
+    return { ok: false, mermaid: "", warnings };
+  }
+  if (Array.isArray(ir.groups) && ir.groups.length > 0) stats.groupsDropped += ir.groups.length;
+
+  const lines = frontMatter(ir);
+  lines.push("classDiagram");
+  const direction = dialectDirection(ir, stats);
+  if (direction) lines.push(`  direction ${direction}`);
+
+  for (const node of model.list) {
+    const alias = dialectAlias(node, stats);
+    const members = [];
+    for (const member of Array.isArray(node.members) ? node.members : []) {
+      if (typeof member !== "string") {
+        stats.classMemberSanitized += 1;
+        continue;
+      }
+      if (hasControlChars(member)) stats.labelCollapsed += 1;
+      const text = classMemberText(member, stats);
+      if (text) members.push(text);
+    }
+    if (members.length === 0) {
+      lines.push(`  class ${node.id}${alias}`);
+    } else {
+      lines.push(`  class ${node.id}${alias} {`);
+      for (const member of members) lines.push(`    ${member}`);
+      lines.push("  }");
+    }
+    if (node.stereotype === "interface" || node.stereotype === "abstract") lines.push(`  <<${node.stereotype}>> ${node.id}`);
+    else if (node.stereotype && node.stereotype !== "class") stats.stereotypeIgnored += 1;
+  }
+
+  const edges = collectRelationEdges(ir, model, stats);
+  for (const edge of edges) {
+    let line;
+    if (edge.kind === "extends") line = `${edge.to.id} <|-- ${edge.from.id}`;
+    else if (edge.kind === "implements") line = `${edge.to.id} <|.. ${edge.from.id}`;
+    else if (edge.kind && CLASS_RELATION[edge.kind]) line = `${edge.from.id} ${CLASS_RELATION[edge.kind]} ${edge.to.id}`;
+    else if (edge.kind === null) line = `${edge.from.id} --> ${edge.to.id}`;
+    else {
+      // Generic flowchart kinds are valid IR, but class diagrams only carry the
+      // five UML relations, so they become a plain association.
+      stats.classEdgeKindMapped += 1;
+      line = `${edge.from.id} --> ${edge.to.id}`;
+    }
+    const label = classRelationLabel(edge.label, stats);
+    lines.push(`  ${line}${label ? ` : ${label}` : ""}`);
+  }
+
+  appendLossWarnings(ir, warnings, stats, { sequence: false });
+  return { ok: true, mermaid: `${lines.join("\n")}\n`, warnings };
+}
+
+
 /* ------------------------------------------------------------------------- */
 /* Warnings                                                                  */
 /* ------------------------------------------------------------------------- */
@@ -748,7 +1040,7 @@ function appendLossWarnings(ir, warnings, stats, { sequence }) {
     pushWarning(
       warnings,
       "to-mermaid/notes-dropped",
-      `${stats.notesDropped} note(s) have no Mermaid flowchart equivalent and were dropped`,
+      `${stats.notesDropped} note(s) have no Mermaid equivalent in this dialect and were dropped`,
     );
   }
   if (stats.sublabelsDropped > 0) {
@@ -787,6 +1079,68 @@ function appendLossWarnings(ir, warnings, stats, { sequence }) {
       warnings,
       "to-mermaid/group-skipped",
       `${stats.fragmentsSkipped} group(s) cannot be expressed in a Mermaid sequence diagram (only fragment groups map to loop/alt/opt blocks)`,
+    );
+  }
+  if (stats.groupsDropped > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/groups-dropped",
+      `${stats.groupsDropped} group(s) were dropped — Mermaid erDiagram/classDiagram has no subgraph equivalent`,
+    );
+  }
+  if (stats.erdAttributesMissing > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/erd-attributes",
+      `${stats.erdAttributesMissing} entity entr${stats.erdAttributesMissing === 1 ? "y had" : "ies had"} no attribute rows; a placeholder row keeps the Mermaid entity valid`,
+    );
+  }
+  if (stats.erdAttrSanitized > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/erd-attribute-sanitized",
+      `${stats.erdAttrSanitized} ER attribute type/name value(s) contained characters a Mermaid ER row cannot hold and were folded to letters, digits, "_", "-", "()" and "[]"`,
+    );
+  }
+  if (stats.erdKeyIgnored > 0) {
+    pushWarning(warnings, "to-mermaid/erd-key-ignored", `${stats.erdKeyIgnored} attribute key value(s) were not pk/fk/unique and got no PK/FK/UK mark`);
+  }
+  if (stats.erdRefDropped > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/erd-ref-dropped",
+      `${stats.erdRefDropped} attribute reference target(s) (ref) have no Mermaid erDiagram equivalent and were dropped`,
+    );
+  }
+  if (stats.erdCardinalityDefault > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/erd-cardinality",
+      `${stats.erdCardinalityDefault} relationship(s) had no valid cardinality; they were written as ${ER_CARDINALITY_DEFAULT}`,
+    );
+  }
+  if (stats.classMemberSanitized > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/class-member-sanitized",
+      `${stats.classMemberSanitized} class member(s) contained characters the Mermaid class block cannot hold (empty, braces or a stereotype lookalike) and were adjusted`,
+    );
+  }
+  if (stats.classEdgeKindMapped > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/class-edge-kind",
+      `${stats.classEdgeKindMapped} class relation(s) used a non-UML kind and were exported as a plain association`,
+    );
+  }
+  if (stats.stereotypeIgnored > 0) {
+    pushWarning(warnings, "to-mermaid/stereotype-ignored", `${stats.stereotypeIgnored} unknown stereotype value(s) were ignored (Mermaid has interface/abstract)`);
+  }
+  if (stats.labelSanitized > 0) {
+    pushWarning(
+      warnings,
+      "to-mermaid/label-sanitized",
+      `${stats.labelSanitized} er/class label or relation value(s) contained characters Mermaid's quoted-string/role grammar cannot carry and were folded (quotes -> ', colons/semicolons -> punctuation)`,
     );
   }
   if (stats.idsNormalized > 0) {
@@ -857,6 +1211,10 @@ function appendLossWarnings(ir, warnings, stats, { sequence }) {
     );
   }
   if (stats.directionIgnored > 0) {
-    pushWarning(warnings, "to-mermaid/direction-ignored", "direction was ignored (only flowchart/architecture diagrams are directional)");
+    pushWarning(
+      warnings,
+      "to-mermaid/direction-ignored",
+      "direction was ignored — only flowchart, erd and class diagrams carry a TB/LR direction, and only TB/LR are valid values",
+    );
   }
 }

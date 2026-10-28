@@ -3,6 +3,33 @@
 All notable changes to this project are documented here. Format: Keep a Changelog,
 versioning: semantic-ish (pre-1.0 was an internal MVP).
 
+## [1.2.4] — 2026-10-28
+
+### Added
+- **`docs/USAGE.md`** — the practical guide: quick start, nine agent prompt
+  recipes, the agent's validate → repair → render loop, CLI recipes with the
+  `--json` receipts, the ten-type picker, six IR rules with their error codes,
+  the artifact keyboard/feature table and troubleshooting. Linked from the
+  README.
+- **`naqsha --version` / `naqsha version`** — prints the installed version from
+  `VERSION`; `--help` now lists `types`, `version` and runnable examples.
+- **Native Mermaid dialects for `erd` and `class`** — `naqsha mermaid` now emits
+  real `erDiagram` (entities, attribute PK/FK/UK marks, cardinality relations)
+  and `classDiagram` (classes, members, `<<interface>>`/`<<abstract>>`,
+  inheritance/composition/dependency markers) instead of a simplified flowchart,
+  and `naqsha convert` reads both back into valid IR. The other five types keep
+  the flowchart fallback with an explicit `to-mermaid/type-simplified` warning.
+- **A self-demo**: `examples/naqsha-repo.architecture.json` +
+  `docs/demo-naqsha-repo.html` map this project's own pipeline (skill contract,
+  CLI, validator, layout, viewer, artifact, test harnesses, distribution) with a
+  4-step walkthrough.
+- New unit tests for the version command and for both Mermaid directions;
+  exporter output was additionally checked against a real Mermaid 11 renderer.
+
+### Changed
+- `--help` and the type/version plumbing share one `readVersion()`; the version
+  is never hardcoded.
+
 ## [1.2.3] — 2026-10-28
 
 ### Changed

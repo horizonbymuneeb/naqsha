@@ -30,7 +30,7 @@
  * >80 edges) is truncated with a warning so the IR stays valid.
  */
 
-const SUPPORTED_TYPES = ["architecture", "workflow", "sequence"];
+const SUPPORTED_TYPES = ["architecture", "workflow", "sequence", "erd", "class"];
 const NODE_MAX = 40;
 const EDGE_MAX = 80;
 const LABEL_MAX = 80; // validator hard limit for node/group labels
@@ -843,6 +843,548 @@ function parseSequence(statements, warnings, metaTitle) {
 }
 
 /* ------------------------------------------------------------------------- */
+/* ER diagram (erDiagram)                                                    */
+/* ------------------------------------------------------------------------- */
+
+const ER_ENTITY_HEADER = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_-]*))\s*(?:\[\s*"([\s\S]*?)"\s*\])?\s*$/;
+const ER_ATTRIBUTE = /^([A-Za-z_][A-Za-z0-9_-]*(?:\([^)]*\))?(?:\[\])*)\s+([A-Za-z_][A-Za-z0-9_-]*)(?:\s+((?:PK|FK|UK)(?:\s*,\s*(?:PK|FK|UK))*))?(?:\s+"([^"]*)")?(?=$|[\s,;])/i;
+const ER_RELATION = /^(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_.-]*))\s+([|o{}]{2})(?:--|\.\.)([|o{}]{2})\s*(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_.-]*))\s*(?::\s*([\s\S]*))?$/;
+
+/**
+ * Line-level splitter for the v1.2 dialects. Cardinality tokens (`o{`, `}|`)
+ * contain braces, so the generic statement splitter cannot be reused here.
+ * Entity/class bodies are collected as one statement with `inner` lines (each
+ * carrying its own line number for warnings); every other non-blank line is a
+ * one-line statement. The diagram header line is skipped.
+ */
+const isErBlockHeader = (text) => /^(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_.-]*)\s*(?:\[\s*"[^"]*"\s*\])?\s*\{/.test(text);
+const isClassBlockHeader = (text) => /^class\s+/i.test(text) && text.indexOf("{") >= 0;
+
+function splitBodyStatements(body, isBlockHeader) {
+  const lines = body.split(/\r?\n/);
+  const out = [];
+  let started = false;
+  let block = null;
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index];
+    const line = index + 1;
+    const text = raw.trim();
+    if (block) {
+      if (/^}\s*(?:;|%%.*)?\s*$/.test(text)) {
+        block.unclosed = false;
+        out.push(block);
+        block = null;
+        continue;
+      }
+      block.inner.push({ text: raw, line });
+      continue;
+    }
+    if (!text) continue;
+    if (/^%%/.test(text)) continue;
+    if (!started) {
+      started = true;
+      continue;
+    }
+    const openAt = text.indexOf("{");
+    if (isBlockHeader(text) && openAt >= 0) {
+      const closeAt = text.lastIndexOf("}");
+      if (closeAt > openAt) {
+        out.push({ text: text.slice(0, openAt).trim(), line, inner: [{ text: text.slice(openAt + 1, closeAt), line }], unclosed: false });
+      } else {
+        block = { text: text.slice(0, openAt).trim(), line, inner: [], unclosed: true };
+      }
+      continue;
+    }
+    out.push({ text: text.replace(/;\s*$/, "").trim(), line, inner: null, unclosed: false });
+  }
+  if (block) out.push(block);
+  return out;
+}
+
+
+/** `direction LR` / `direction TB` inside a v1.2 diagram body. */
+function parseDiagramDirection(word, line, warnings) {
+  const value = String(word || "").trim().toUpperCase();
+  if (value === "TB" || value === "TD") return "TB";
+  if (value === "LR") return "LR";
+  if (value === "BT") {
+    warnings.push({ code: "convert/direction-mapped", message: '"BT" mapped to "TB" (IR only has TB/LR)', line });
+    return "TB";
+  }
+  if (value === "RL") {
+    warnings.push({ code: "convert/direction-mapped", message: '"RL" mapped to "LR" (IR only has TB/LR)', line });
+    return "LR";
+  }
+  warnings.push({ code: "convert/unknown-direction", message: `unknown direction "${truncateForMessage(value)}"; defaulting to "TB"`, line });
+  return "TB";
+}
+
+/** `ENTITY`, `"Entity Name"` or `ENTITY["Entity label"]`. */
+function parseErEntityRef(text, line, warnings) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  const match = ER_ENTITY_HEADER.exec(raw);
+  if (!match) {
+    warnings.push({ code: "convert/unsupported", message: `could not parse ER entity name "${truncateForMessage(raw)}"`, line });
+    const token = raw.split(/\s+/)[0];
+    if (!/^[A-Za-z_][A-Za-z0-9_.-]*$/.test(token)) return null;
+    return { rawId: token, label: token, alias: false };
+  }
+  const quoted = match[1];
+  const plain = match[2];
+  const rawId = quoted || plain;
+  const label = match[3] !== undefined ? cleanLabel(match[3]) : cleanLabel(rawId);
+  return { rawId, label: label || rawId, alias: match[3] !== undefined };
+}
+
+function erRefFromToken(token) {
+  const raw = String(token || "").trim().replace(/^"|"$/g, "");
+  if (!raw) return null;
+  return { rawId: raw, label: raw, alias: false };
+}
+
+function makeErAttribute(match, line, warnings) {
+  const type = match[1];
+  const name = match[2];
+  const keys = match[3] ? match[3].split(",").map((key) => key.trim().toUpperCase()) : [];
+  const key = keys.includes("PK") ? "pk" : keys.includes("FK") ? "fk" : keys.includes("UK") ? "unique" : null;
+  const attr = { name, type };
+  if (key) attr.key = key;
+  const comment = (match[4] || "").trim();
+  if (comment) {
+    const ref = /^([A-Za-z_][A-Za-z0-9_-]*\.[A-Za-z_][A-Za-z0-9_]*)$/.exec(comment);
+    if (ref) attr.refRaw = ref[1];
+    else warnings.push({ code: "convert/erd-comment", message: `attribute comment "${truncateForMessage(comment)}" is not an "entity.column" reference; dropped`, line });
+  }
+  return attr;
+}
+
+/** Scan the inside of an entity block; tolerates several attributes per line. */
+function scanErAttributes(innerLines, warnings) {
+  const attributes = [];
+  for (const entry of innerLines) {
+    let text = entry.text;
+    const commentAt = text.indexOf("%%");
+    if (commentAt >= 0) text = text.slice(0, commentAt);
+    text = text.trim().replace(/;$/, "").trim();
+    let rest = text;
+    let guard = 0;
+    while (rest && guard < 24) {
+      guard += 1;
+      const match = ER_ATTRIBUTE.exec(rest);
+      if (!match) break;
+      attributes.push(makeErAttribute(match, entry.line, warnings));
+      rest = rest.slice(match[0].length).trim().replace(/^[;, ]\s*/, "");
+    }
+    if (!rest) continue;
+    if (/^[}\s]*$/.test(rest)) continue;
+    const single = /^([A-Za-z_][A-Za-z0-9_]*)$/.exec(rest);
+    if (single) {
+      attributes.push({ name: single[1], type: "text" });
+      warnings.push({ code: "convert/erd-attribute", message: `attribute "${single[1]}" has no type; used "text"`, line: entry.line });
+      continue;
+    }
+    warnings.push({ code: "convert/unsupported", message: `unrecognized ER attribute text "${truncateForMessage(rest)}"`, line: entry.line });
+  }
+  return attributes;
+}
+
+function parseErDiagram(statements, warnings) {
+  const entities = [];
+  const byKey = new Map();
+  const usedIds = new Set();
+  const edges = [];
+  let direction = null;
+
+  const registerEntity = (ref, line, declared) => {
+    if (!ref) return null;
+    const key = normalizeId(ref.rawId);
+    let entity = byKey.get(key);
+    if (!entity) {
+      entity = {
+        id: uniqueId(key, usedIds),
+        key,
+        label: ref.label || ref.rawId,
+        labelExplicit: Boolean(ref.alias),
+        attributes: [],
+        declared: false,
+        line,
+      };
+      entities.push(entity);
+      byKey.set(key, entity);
+    } else if (ref.label && ref.label !== entity.label) {
+      if (ref.alias && !entity.labelExplicit) {
+        entity.label = ref.label;
+        entity.labelExplicit = true;
+      } else if (ref.alias) {
+        warnings.push({ code: "convert/node-redefined", message: `ER entity "${ref.rawId}" redeclared as "${truncateForMessage(ref.label)}"; keeping the first label`, line });
+      }
+    }
+    if (declared) {
+      if (entity.declared) warnings.push({ code: "convert/unsupported", message: `ER entity "${ref.rawId}" is declared more than once; attributes are merged`, line });
+      entity.declared = true;
+    }
+    return entity;
+  };
+
+  const addAttributes = (entity, attributes, line) => {
+    for (const attr of attributes) {
+      if (entity.attributes.length >= 12) {
+        warnings.push({ code: "convert/erd-attributes", message: `entity "${entity.label}" has more than 12 attributes; extra column "${attr.name}" dropped`, line });
+        continue;
+      }
+      entity.attributes.push(attr);
+    }
+  };
+
+  for (const statement of statements) {
+    const line = statement.line;
+    if (statement.unclosed) {
+      warnings.push({ code: "convert/unsupported", message: "an ER entity block was not closed; attributes were still read", line });
+    }
+    if (statement.inner) {
+      const ref = parseErEntityRef(statement.text, line, warnings);
+      if (!ref) continue;
+      const entity = registerEntity(ref, line, true);
+      addAttributes(entity, scanErAttributes(statement.inner, warnings), line);
+      continue;
+    }
+
+    const text = statement.text.trim();
+    if (!text) continue;
+    if (/^direction\b/i.test(text)) {
+      direction = parseDiagramDirection(text.split(/\s+/)[1], line, warnings);
+      continue;
+    }
+    if (/^%%/.test(text)) continue;
+
+    const relation = ER_RELATION.exec(text);
+    if (relation) {
+      const left = erRefFromToken(relation[1] || relation[2]);
+      const right = erRefFromToken(relation[5] || relation[6]);
+      const leftMany = /[{}]/.test(relation[3]);
+      const rightMany = /[{}]/.test(relation[4]);
+      const label = cleanLabel(relation[7] || "");
+      const leftEntity = registerEntity(left, line, false);
+      const rightEntity = registerEntity(right, line, false);
+      if (!leftEntity || !rightEntity) continue;
+      let from = leftEntity;
+      let to = rightEntity;
+      let cardinality;
+      if (leftMany && rightMany) cardinality = "n:m";
+      else if (!leftMany && rightMany) cardinality = "1:n";
+      else if (leftMany && !rightMany) {
+        cardinality = "1:n";
+        from = rightEntity;
+        to = leftEntity;
+        warnings.push({ code: "convert/erd-direction", message: `relationship "${leftEntity.label}" - "${rightEntity.label}" reads many-to-one; emitted as 1:n from the "one" side`, line });
+      } else cardinality = "1:1";
+      if (from.id === to.id) {
+        warnings.push({ code: "convert/self-edge", message: `self-relationship on "${from.label}" dropped (IR has no self-edges)`, line });
+        continue;
+      }
+      edges.push({ from: from.id, to: to.id, label, cardinality, line });
+      continue;
+    }
+
+    const simple = parseErEntityRef(text, line, warnings);
+    if (simple && /^(?:"[^"]+"|[A-Za-z_][A-Za-z0-9_-]*)(?:\s*\[\s*"[^"]*"\s*\])?$/.test(text)) {
+      registerEntity(simple, line, true);
+      continue;
+    }
+    if (/^(title|acctitle|accdescr|classdef|style|linkstyle|click|callback|subgraph|end)\b/i.test(text)) {
+      warnings.push({ code: "convert/unsupported", message: `"${text.split(/\s+/)[0]}" is not representable in ER IR; ignored`, line });
+      continue;
+    }
+    warnings.push({ code: "convert/unsupported", message: `unrecognized erDiagram statement "${truncateForMessage(text)}" ignored`, line });
+  }
+  return { entities, edges, direction };
+}
+
+function leftType(entity) {
+  return entity ? entity.label : "?";
+}
+
+function finalizeErd(parsed, warnings) {
+  const nodes = parsed.entities.map((entity) => {
+    const attributes = entity.attributes.slice(0, 12).map((attr) => {
+      const entry = { name: attr.name, type: attr.type };
+      if (attr.key) entry.key = attr.key;
+      return entry;
+    });
+    if (attributes.length === 0) {
+      attributes.push({ name: "id", type: "uuid" });
+      warnings.push({
+        code: "convert/erd-entity",
+        message: `ER entity "${entity.label}" has no attribute block; added a placeholder "id uuid" so the IR stays valid`,
+        line: entity.line,
+      });
+    }
+    return { id: entity.id, label: truncateChars(entity.label, LABEL_MAX).text, attributes };
+  });
+
+  // Resolve "entity.column" references now that every attribute is known.
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const byLabel = new Map();
+  for (const entity of parsed.entities) {
+    const label = normalizeId(entity.label);
+    if (label && !byLabel.has(label)) byLabel.set(label, entity.id);
+  }
+  parsed.entities.forEach((entity, nodeIndex) => {
+    entity.attributes.slice(0, 12).forEach((attr, attrIndex) => {
+      if (!attr.refRaw) return;
+      const [rawEntity, column] = attr.refRaw.split(".");
+      const targetId = byId.has(normalizeId(rawEntity)) ? normalizeId(rawEntity) : byLabel.get(normalizeId(rawEntity));
+      const target = targetId ? byId.get(targetId) : null;
+      if (!target || !target.attributes.some((row) => row.name === column)) {
+        warnings.push({ code: "convert/erd-ref", message: `reference "${attr.refRaw}" does not resolve to a declared entity column; dropped`, line: entity.line });
+        return;
+      }
+      nodes[nodeIndex].attributes[attrIndex].ref = `${target.id}.${column}`;
+    });
+  });
+
+  const edges = dedupeEdges(parsed.edges, warnings).map((edge) => {
+    const entry = { from: edge.from, to: edge.to };
+    if (edge.label) entry.label = edge.label;
+    entry.cardinality = edge.cardinality;
+    return entry;
+  });
+  const ir = { title: "", type: "erd", nodes, edges };
+  if (parsed.direction) ir.direction = parsed.direction;
+  clampNodes(ir, warnings);
+  clampEdges(ir, warnings);
+  return ir;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Class diagram (classDiagram)                                              */
+/* ------------------------------------------------------------------------- */
+
+const CLASS_RELATION = /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?:"([^"]*)"\s*)?(<\|--|<\|\.\.|--\|>|\.\.\|>|\*--|--\*|o--|--o|-->|<--|\.\.>|<\.\.|--|\.\.)\s*(?:"([^"]*)"\s*)?([A-Za-z_][A-Za-z0-9_.]*)\s*(?::\s*([\s\S]*))?$/;
+const CLASS_RELATION_SPECS = {
+  "<|--": { kind: "extends", reverse: true },
+  "<|..": { kind: "implements", reverse: true },
+  "--|>": { kind: "extends", reverse: false },
+  "..|>": { kind: "implements", reverse: false },
+  "*--": { kind: "composition", reverse: false },
+  "--*": { kind: "composition", reverse: true },
+  "o--": { kind: "association", reverse: false, aggregation: true },
+  "--o": { kind: "association", reverse: true, aggregation: true },
+  "-->": { kind: "association", reverse: false },
+  "<--": { kind: "association", reverse: true },
+  "..>": { kind: "dependency", reverse: false },
+  "<..": { kind: "dependency", reverse: true },
+  "--": { kind: "association", reverse: false },
+  "..": { kind: "dependency", reverse: false },
+};
+
+function parseClassReference(text, line, warnings) {
+  let raw = String(text || "").trim();
+  if (!raw) return null;
+  const styleIndex = raw.indexOf(":::");
+  if (styleIndex >= 0) {
+    warnings.push({ code: "convert/unsupported", message: `class style attachment "${truncateForMessage(raw.slice(styleIndex))}" ignored`, line });
+    raw = raw.slice(0, styleIndex).trim();
+  }
+  let generics = "";
+  const generic = /^([A-Za-z_][A-Za-z0-9_.]*)\s*~([\s\S]+?)~\s*$/.exec(raw);
+  if (generic) {
+    generics = `<${cleanLabel(generic[2])}>`;
+    raw = generic[1];
+  }
+  const match = /^([A-Za-z_][A-Za-z0-9_.]*)\s*(?:\[\s*"([\s\S]*?)"\s*\])?\s*$/.exec(raw);
+  if (!match) {
+    warnings.push({ code: "convert/unsupported", message: `could not parse class name "${truncateForMessage(raw)}"`, line });
+    const token = raw.split(/\s+/)[0].replace(/~[\s\S]*~$/, "");
+    if (!/^[A-Za-z_][A-Za-z0-9_.]*$/.test(token)) return null;
+    return { rawId: token, label: token + generics, alias: false };
+  }
+  const label = match[2] !== undefined ? `${cleanLabel(match[2])}${generics}` : `${cleanLabel(match[1])}${generics}`;
+  return { rawId: match[1], label: label || match[1], alias: match[2] !== undefined };
+}
+
+function classRefFromToken(token) {
+  const raw = String(token || "").trim();
+  if (!raw) return null;
+  const base = raw.replace(/~[\s\S]*~$/, "");
+  return { rawId: base, label: raw, alias: false };
+}
+
+function setClassStereotype(node, raw, line, warnings) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (["interface", "abstract", "class"].includes(value)) {
+    if (node.stereotype && node.stereotype !== value) {
+      warnings.push({ code: "convert/node-redefined", message: `class "${node.label}" has conflicting stereotypes; keeping "${node.stereotype}"`, line });
+      return;
+    }
+    node.stereotype = value;
+    return;
+  }
+  warnings.push({ code: "convert/unsupported", message: `stereotype "<<${raw}>>" has no IR equivalent (interface/abstract only); ignored`, line });
+}
+
+function addClassMember(node, text, line, warnings) {
+  const member = String(text || "").trim();
+  if (!member) return;
+  if (node.members.length >= 12) {
+    warnings.push({ code: "convert/class-members", message: `class "${node.label}" has more than 12 members; extra member dropped`, line });
+    return;
+  }
+  const limited = truncateChars(member, 60);
+  if (limited.truncated) warnings.push({ code: "convert/class-members", message: `member "${truncateForMessage(member)}" is longer than 60 characters and was shortened`, line });
+  if (!node.members.includes(limited.text)) node.members.push(limited.text);
+}
+
+function scanClassBody(innerLines, node, warnings) {
+  for (const entry of innerLines) {
+    let text = entry.text;
+    const commentAt = text.indexOf("%%");
+    if (commentAt >= 0) text = text.slice(0, commentAt);
+    text = text.trim();
+    if (!text) continue;
+    const stereotype = /^<<\s*([A-Za-z]+)\s*>>\s*$/.exec(text);
+    if (stereotype) {
+      setClassStereotype(node, stereotype[1], entry.line, warnings);
+      continue;
+    }
+    addClassMember(node, text, entry.line, warnings);
+  }
+}
+
+function parseClassDiagram(statements, warnings) {
+  const classes = [];
+  const byKey = new Map();
+  const usedIds = new Set();
+  const edges = [];
+  let direction = null;
+
+  const registerClass = (ref, line, declared) => {
+    if (!ref) return null;
+    const key = normalizeId(ref.rawId);
+    let node = byKey.get(key);
+    if (!node) {
+      node = {
+        id: uniqueId(key, usedIds),
+        key,
+        label: ref.label || ref.rawId,
+        labelExplicit: Boolean(ref.alias),
+        stereotype: null,
+        members: [],
+        declared: false,
+        line,
+      };
+      classes.push(node);
+      byKey.set(key, node);
+    } else if (ref.label && ref.label !== node.label) {
+      if (ref.alias && !node.labelExplicit) {
+        node.label = ref.label;
+        node.labelExplicit = true;
+      } else if (ref.alias) {
+        warnings.push({ code: "convert/node-redefined", message: `class "${ref.rawId}" redeclared as "${truncateForMessage(ref.label)}"; keeping the first label`, line });
+      }
+    }
+    if (declared) node.declared = true;
+    return node;
+  };
+
+  for (const statement of statements) {
+    const line = statement.line;
+    if (statement.unclosed) {
+      warnings.push({ code: "convert/unsupported", message: "a class block was not closed; members were still read", line });
+    }
+    if (statement.inner) {
+      const ref = parseClassReference(statement.text.replace(/^class\s+/i, ""), line, warnings);
+      if (!ref) continue;
+      const node = registerClass(ref, line, true);
+      scanClassBody(statement.inner, node, warnings);
+      continue;
+    }
+
+    const text = statement.text.trim();
+    if (!text) continue;
+    if (/^direction\b/i.test(text)) {
+      direction = parseDiagramDirection(text.split(/\s+/)[1], line, warnings);
+      continue;
+    }
+    if (/^%%/.test(text)) continue;
+
+    if (/^class\s+/i.test(text)) {
+      const ref = parseClassReference(text.replace(/^class\s+/i, ""), line, warnings);
+      if (ref) registerClass(ref, line, true);
+      continue;
+    }
+
+    const standaloneStereotype = /^<<\s*([A-Za-z]+)\s*>>\s*([A-Za-z_][A-Za-z0-9_.]*)\s*$/.exec(text);
+    if (standaloneStereotype) {
+      const node = registerClass({ rawId: standaloneStereotype[2], label: standaloneStereotype[2], alias: false }, line, true);
+      setClassStereotype(node, standaloneStereotype[1], line, warnings);
+      continue;
+    }
+
+    const relation = CLASS_RELATION.exec(text);
+    if (relation) {
+      const spec = CLASS_RELATION_SPECS[relation[3]];
+      const left = classRefFromToken(relation[1]);
+      const right = classRefFromToken(relation[5]);
+      const leftNode = registerClass(left, line, false);
+      const rightNode = registerClass(right, line, false);
+      if (!spec || !leftNode || !rightNode) {
+        warnings.push({ code: "convert/unsupported", message: `unrecognized class relation "${truncateForMessage(text)}" ignored`, line });
+        continue;
+      }
+      if (relation[2] || relation[4]) {
+        warnings.push({ code: "convert/class-multiplicity", message: `class relation multiplicity ${JSON.stringify(relation[2] || relation[4])} has no IR field; dropped`, line });
+      }
+      if (spec.aggregation) {
+        warnings.push({ code: "convert/class-aggregation", message: `aggregation "${relation[3]}" has no IR kind; mapped to "association"`, line });
+      }
+      const from = spec.reverse ? rightNode : leftNode;
+      const to = spec.reverse ? leftNode : rightNode;
+      if (from.id === to.id) {
+        warnings.push({ code: "convert/self-edge", message: `self-relation on "${from.label}" dropped (IR has no self-edges)`, line });
+        continue;
+      }
+      edges.push({ from: from.id, to: to.id, label: cleanLabel(relation[6] || ""), kind: spec.kind, line });
+      continue;
+    }
+
+    const memberLine = /^([A-Za-z_][A-Za-z0-9_.]*)\s*:\s*([\s\S]+)$/.exec(text);
+    if (memberLine) {
+      const node = registerClass({ rawId: memberLine[1], label: memberLine[1], alias: false }, line, true);
+      addClassMember(node, memberLine[2], line, warnings);
+      continue;
+    }
+    if (/^(classdef|style|cssclass|linkstyle|click|callback|title|acctitle|accdescr|note)\b/i.test(text)) {
+      warnings.push({ code: "convert/unsupported", message: `"${text.split(/\s+/)[0]}" is not representable in class IR; ignored`, line });
+      continue;
+    }
+    warnings.push({ code: "convert/unsupported", message: `unrecognized classDiagram statement "${truncateForMessage(text)}" ignored`, line });
+  }
+  return { classes, edges, direction };
+}
+
+function finalizeClassDiagram(parsed, warnings) {
+  const nodes = parsed.classes.map((cls) => {
+    const node = { id: cls.id, label: truncateChars(cls.label, LABEL_MAX).text };
+    if (cls.stereotype) node.stereotype = cls.stereotype;
+    if (cls.members.length > 0) node.members = cls.members.slice(0, 12);
+    return node;
+  });
+  const edges = dedupeEdges(parsed.edges, warnings).map((edge) => {
+    const entry = { from: edge.from, to: edge.to };
+    if (edge.label) entry.label = edge.label;
+    entry.kind = edge.kind;
+    return entry;
+  });
+  const ir = { title: "", type: "class", nodes, edges };
+  if (parsed.direction) ir.direction = parsed.direction;
+  clampNodes(ir, warnings);
+  clampEdges(ir, warnings);
+  return ir;
+}
+
+/* ------------------------------------------------------------------------- */
 /* IR assembly                                                               */
 /* ------------------------------------------------------------------------- */
 
@@ -955,10 +1497,17 @@ function finalizeSequence(parsed, warnings) {
   return ir;
 }
 
+const DEFAULT_TITLES = {
+  "sequence": "Mermaid sequence",
+  "flowchart": "Mermaid flowchart",
+  "erd": "Mermaid ER diagram",
+  "class": "Mermaid class diagram",
+};
+
 function deriveTitle(meta, dialect, parsed) {
   const raw = meta.title || (parsed && parsed.title) || "";
   if (raw) return truncateChars(cleanLabel(raw), TITLE_MAX).text;
-  return dialect === "sequence" ? "Mermaid sequence" : "Mermaid flowchart";
+  return DEFAULT_TITLES[dialect] || "Mermaid diagram";
 }
 
 /* ------------------------------------------------------------------------- */
@@ -984,7 +1533,7 @@ export function convertMermaid(text, { type = "auto" } = {}) {
   const source = text.replace(/^\uFEFF/, "");
   if (!source.trim()) return fail("convert/empty", "Mermaid input is empty", 1);
   if (type !== "auto" && !SUPPORTED_TYPES.includes(type)) {
-    return fail("convert/bad-type", `unknown target type "${truncateForMessage(type)}" — use auto, architecture, workflow or sequence`, 1);
+    return fail("convert/bad-type", `unknown target type "${truncateForMessage(type)}" — use auto, architecture, workflow, sequence, erd or class`, 1);
   }
 
   const front = takeFrontMatter(source);
@@ -1006,18 +1555,50 @@ export function convertMermaid(text, { type = "auto" } = {}) {
     headerWord = "flowchart";
   }
 
-  if (headerWord !== "flowchart" && headerWord !== "graph" && headerWord !== "sequencediagram") {
+  const KNOWN_DIALECTS = ["flowchart", "graph", "sequencediagram", "erdiagram", "classdiagram"];
+  if (!KNOWN_DIALECTS.includes(headerWord)) {
     const shownWord = header.text.split(/[\s;]/)[0] || headerWord;
-    if (/^[a-z]+(diagram|chart|graph)$/i.test(headerWord) || ["gantt", "pie", "journey", "mindmap", "timeline", "gitgraph", "kanban", "block", "packet", "sankey", "architecture-beta", "quadrantchart", "xychart", "requirementdiagram", "classdiagram", "statediagram", "statediagram-v2", "erdiagram", "c4context"].includes(headerWord)) {
-      return fail("convert/unsupported-diagram", `"${truncateForMessage(shownWord)}" is not supported yet — Naqsha converts flowchart/graph and sequenceDiagram`, header.line);
+    if (/^[a-z]+(diagram|chart|graph)$/i.test(headerWord) || ["gantt", "pie", "journey", "mindmap", "timeline", "gitgraph", "kanban", "block", "packet", "sankey", "architecture-beta", "quadrantchart", "xychart", "requirementdiagram", "statediagram", "statediagram-v2", "c4context"].includes(headerWord)) {
+      return fail("convert/unsupported-diagram", `"${truncateForMessage(shownWord)}" is not supported yet — Naqsha converts flowchart/graph, sequenceDiagram, erDiagram and classDiagram`, header.line);
     }
-    return fail("convert/unknown-diagram", `unrecognized diagram header "${truncateForMessage(header.text)}" (expected flowchart/graph or sequenceDiagram)`, header.line);
+    return fail("convert/unknown-diagram", `unrecognized diagram header "${truncateForMessage(header.text)}" (expected flowchart/graph, sequenceDiagram, erDiagram or classDiagram)`, header.line);
   }
 
   const isSequence = headerWord === "sequencediagram";
+  const isErd = headerWord === "erdiagram";
+  const isClass = headerWord === "classdiagram";
   const restStatements = shifted.slice(1);
 
+  if (isErd || isClass) {
+    const nativeType = isErd ? "erd" : "class";
+    const dialectName = isErd ? "erDiagram" : "classDiagram";
+    if (type !== "auto" && type !== nativeType) {
+      warnings.push({
+        code: "convert/type-mismatch",
+        message: `${dialectName} can only produce "${nativeType}" IR (requested "${type}"); keeping "${nativeType}"`,
+        line: header.line,
+      });
+    }
+    const dialectStatements = splitBodyStatements(front.body, isErd ? isErBlockHeader : isClassBlockHeader).map((entry) => ({
+      ...entry,
+      line: shiftLine(entry.line),
+      inner: entry.inner ? entry.inner.map((inner) => ({ ...inner, line: shiftLine(inner.line) })) : null,
+    }));
+    const parsed = isErd ? parseErDiagram(dialectStatements, warnings) : parseClassDiagram(dialectStatements, warnings);
+    const nodeCount = isErd ? parsed.entities.length : parsed.classes.length;
+    if (nodeCount === 0) {
+      return fail("convert/no-nodes", `${dialectName} has no ${isErd ? "entities" : "classes"}`, header.line);
+    }
+    const ir = isErd ? finalizeErd(parsed, warnings) : finalizeClassDiagram(parsed, warnings);
+    ir.title = deriveTitle(front.meta, nativeType, null);
+    if (front.meta.subtitle) ir.subtitle = truncateChars(String(front.meta.subtitle), 120).text;
+    return { ok: true, ir, warnings, errors };
+  }
+
   if (isSequence) {
+    if (type === "erd" || type === "class") {
+      return fail("convert/type-mismatch", `a sequenceDiagram cannot become "${type}" IR — ${type === "erd" ? "entity attributes" : "class members"} are not present in messages`, header.line);
+    }
     if (type !== "auto" && type !== "sequence") {
       warnings.push({ code: "convert/type-mismatch", message: `input is a sequenceDiagram but type "${type}" was requested; keeping the requested type`, line: header.line });
     }
@@ -1040,6 +1621,9 @@ export function convertMermaid(text, { type = "auto" } = {}) {
   }
 
   // ---- flowchart / graph ----
+  if (type === "erd" || type === "class") {
+    return fail("convert/type-mismatch", `a flowchart cannot become "${type}" IR — ${type === "erd" ? "entity attributes" : "class members"} are not present in nodes and edges`, header.line);
+  }
   const headerText = header.text.replace(/^\S+\s*/, "");
   let direction = "TB";
   const directionWord = (headerText.split(/[\s;]/)[0] || "").toUpperCase();

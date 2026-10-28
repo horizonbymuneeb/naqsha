@@ -12,6 +12,7 @@
 //   naqsha convert  <in.mmd> <out.json> [--type] [--json]
 //   naqsha mermaid  <in.json> <out.mmd> [--json]
 //   naqsha fix      <in.json> [--write | --out <file>] [--json]
+//   naqsha version | --version       print the CLI version
 //
 // Zero dependencies, Node >= 18, ESM. Contract: src/CONTRACT.md §4.
 // Exit codes: 0 ok, 1 validation/render/runtime failure, 2 usage error
@@ -45,6 +46,7 @@ Usage:
   naqsha validate <in.json> [--json]
   naqsha render   <in.json> <out.html> [--mode light|dark|auto] [--json]
   naqsha demo     <outdir> [--mode light|dark|auto] [--json]
+  naqsha types    [--json]
   naqsha doctor   [--json]
   naqsha screenshot <html> <out.png> [--width 1440] [--height 980]
   naqsha diff     <base.json> <head.json> <out.html> [--mode light|dark|auto] [--json]
@@ -52,6 +54,11 @@ Usage:
   naqsha convert  <in.mmd> <out.json> [--type auto|workflow|architecture|sequence] [--json]
   naqsha mermaid  <in.json> <out.mmd> [--json]
   naqsha fix      <in.json> [--write | --out <file>] [--json]
+  naqsha version | --version       print the CLI version
+
+Examples:
+  naqsha render examples/engine-repo.architecture.json diagram.html
+  naqsha diff   examples/engine-repo.v31.architecture.json examples/engine-repo.architecture.json diff.html
 
 Exit codes: 0 ok · 1 validation/render failure · 2 usage error
 `;
@@ -78,6 +85,15 @@ const emitJson = (value) => {
 };
 
 const display = (absolutePath) => path.relative(process.cwd(), absolutePath) || absolutePath;
+
+/** CLI version, read from the VERSION file that ships with the skill. */
+function readVersion() {
+  try {
+    return fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim() || "dev";
+  } catch {
+    return "dev";
+  }
+}
 
 const cliError = (code, message, errorPath, hint) => ({ code, message, path: errorPath, hint });
 
@@ -604,6 +620,16 @@ async function cmdMermaid(tokens) {
 }
 
 // ---------------------------------------------------------------------------
+// version
+// ---------------------------------------------------------------------------
+
+function cmdVersion(tokens) {
+  parseCommandArgs(tokens, { allow: [], min: 0, max: 0 });
+  process.stdout.write(`naqsha ${readVersion()}\n`);
+  return EXIT_OK;
+}
+
+// ---------------------------------------------------------------------------
 // types
 // ---------------------------------------------------------------------------
 
@@ -625,9 +651,7 @@ async function cmdTypes(tokens) {
   if (flags.json) {
     emitJson({ ok: true, types: TYPE_CATALOG.map(([name, use, shape]) => ({ name, use, shape })) });
   } else {
-    let version = "dev";
-  try { version = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim(); } catch { /* dev checkout */ }
-  process.stdout.write(`naqsha ${version} — ${TYPE_CATALOG.length} diagram types\n\n`);
+    process.stdout.write(`naqsha ${readVersion()} — ${TYPE_CATALOG.length} diagram types\n\n`);
     for (const [name, use, shape] of TYPE_CATALOG) {
       process.stdout.write(`  ${name.padEnd(13)} ${use}\n`);
       process.stdout.write(`  ${"".padEnd(13)} ${shape}\n`);
@@ -1188,6 +1212,10 @@ async function main() {
     return EXIT_USAGE;
   }
   const [command, ...rest] = argv;
+  if (command === "--version") {
+    process.stdout.write(`naqsha ${readVersion()}\n`);
+    return EXIT_OK;
+  }
   if (command === "help" || command === "--help" || command === "-h") {
     process.stdout.write(USAGE);
     return EXIT_OK;
@@ -1201,6 +1229,8 @@ async function main() {
       return cmdDemo(rest);
     case "types":
       return cmdTypes(rest);
+    case "version":
+      return cmdVersion(rest);
     case "doctor":
       return cmdDoctor(rest);
     case "screenshot":

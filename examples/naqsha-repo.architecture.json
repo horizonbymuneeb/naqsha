@@ -1,0 +1,292 @@
+{
+  "title": "Naqsha Repository Map",
+  "subtitle": "the skill, the render pipeline, the gates, the distribution",
+  "type": "architecture",
+  "direction": "TB",
+  "nodes": [
+    {
+      "id": "agent",
+      "label": "Coding agent",
+      "sublabel": "reads the skill",
+      "kind": "actor",
+      "group": "surface"
+    },
+    {
+      "id": "skill-contract",
+      "label": "Skill contract",
+      "sublabel": "typed JSON rules",
+      "kind": "security",
+      "group": "surface"
+    },
+    {
+      "id": "cli",
+      "label": "CLI commands",
+      "sublabel": "six commands, JSON receipts",
+      "kind": "service",
+      "group": "surface"
+    },
+    {
+      "id": "validator",
+      "label": "IR validator",
+      "sublabel": "actionable diagnostics",
+      "kind": "security",
+      "group": "diagnostics"
+    },
+    {
+      "id": "ir-fixer",
+      "label": "IR fixer",
+      "sublabel": "normalizes and repairs",
+      "kind": "compute",
+      "group": "diagnostics"
+    },
+    {
+      "id": "importer",
+      "label": "Format import",
+      "sublabel": "flowchart and sequence",
+      "kind": "compute",
+      "group": "diagnostics"
+    },
+    {
+      "id": "layout",
+      "label": "Layout engine",
+      "sublabel": "deterministic scene model",
+      "kind": "compute",
+      "group": "render"
+    },
+    {
+      "id": "compose",
+      "label": "HTML composer",
+      "sublabel": "inlines CSS and SVG",
+      "kind": "compute",
+      "group": "render"
+    },
+    {
+      "id": "viewer",
+      "label": "Viewer runtime",
+      "sublabel": "tour, diff, search",
+      "kind": "service",
+      "group": "render"
+    },
+    {
+      "id": "artifact",
+      "label": "Offline HTML",
+      "sublabel": "single file, no network",
+      "kind": "note",
+      "group": "render"
+    },
+    {
+      "id": "install",
+      "label": "install.sh",
+      "sublabel": "one-command skill install",
+      "kind": "external",
+      "group": "release-gates"
+    },
+    {
+      "id": "package",
+      "label": "naqsha-cli",
+      "sublabel": "published package",
+      "kind": "external",
+      "group": "release-gates"
+    },
+    {
+      "id": "release",
+      "label": "Tagged release",
+      "sublabel": "versioned source bundle",
+      "kind": "state",
+      "group": "release-gates"
+    },
+    {
+      "id": "test-harnesses",
+      "label": "Test harnesses",
+      "sublabel": "unit, acceptance, interaction",
+      "kind": "security",
+      "group": "release-gates"
+    }
+  ],
+  "edges": [
+    {
+      "from": "agent",
+      "to": "skill-contract",
+      "label": "loads contract",
+      "kind": "main"
+    },
+    {
+      "from": "agent",
+      "to": "cli",
+      "label": "runs commands",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "validator",
+      "label": "validates IR",
+      "kind": "main"
+    },
+    {
+      "from": "validator",
+      "to": "cli",
+      "label": "diagnostics",
+      "kind": "return"
+    },
+    {
+      "from": "cli",
+      "to": "ir-fixer",
+      "label": "repairs IR",
+      "kind": "main"
+    },
+    {
+      "from": "ir-fixer",
+      "to": "validator",
+      "label": "rechecks",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "importer",
+      "label": "imports input",
+      "kind": "main"
+    },
+    {
+      "from": "importer",
+      "to": "validator",
+      "label": "candidate IR",
+      "kind": "data"
+    },
+    {
+      "from": "cli",
+      "to": "layout",
+      "label": "renders scene",
+      "kind": "main"
+    },
+    {
+      "from": "layout",
+      "to": "compose",
+      "label": "scene model",
+      "kind": "main"
+    },
+    {
+      "from": "compose",
+      "to": "viewer",
+      "label": "inlines runtime",
+      "kind": "data"
+    },
+    {
+      "from": "compose",
+      "to": "artifact",
+      "label": "writes HTML",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "compose",
+      "label": "diff artifacts",
+      "kind": "async"
+    },
+    {
+      "from": "release",
+      "to": "package",
+      "label": "publishes version",
+      "kind": "main"
+    },
+    {
+      "from": "install",
+      "to": "skill-contract",
+      "label": "installs skill",
+      "kind": "main"
+    },
+    {
+      "from": "test-harnesses",
+      "to": "artifact",
+      "label": "release gates",
+      "kind": "security"
+    }
+  ],
+  "groups": [
+    {
+      "id": "surface",
+      "label": "Agent surface",
+      "kind": "zone",
+      "nodes": [
+        "agent",
+        "skill-contract",
+        "cli"
+      ]
+    },
+    {
+      "id": "diagnostics",
+      "label": "Diagnostics",
+      "kind": "boundary",
+      "nodes": [
+        "validator",
+        "ir-fixer",
+        "importer"
+      ]
+    },
+    {
+      "id": "render",
+      "label": "Render pipeline",
+      "kind": "zone",
+      "nodes": [
+        "layout",
+        "compose",
+        "viewer",
+        "artifact"
+      ]
+    },
+    {
+      "id": "release-gates",
+      "label": "Release and gates",
+      "kind": "zone",
+      "nodes": [
+        "test-harnesses",
+        "install",
+        "package",
+        "release"
+      ]
+    }
+  ],
+  "walkthrough": [
+    {
+      "title": "Skill surface",
+      "text": "A coding agent loads the skill contract, then runs one CLI command on a small JSON file.",
+      "focus": [
+        "agent",
+        "skill-contract",
+        "cli"
+      ]
+    },
+    {
+      "title": "Validate and repair",
+      "text": "The validator returns codes and hints; the fixer normalizes the file until it passes.",
+      "focus": [
+        "validator",
+        "ir-fixer"
+      ]
+    },
+    {
+      "title": "Render pipeline",
+      "text": "The layout engine builds a scene, the composer inlines style, SVG and runtime, and one offline HTML page comes out.",
+      "focus": [
+        "layout",
+        "compose",
+        "viewer",
+        "artifact"
+      ]
+    },
+    {
+      "title": "Verify and ship",
+      "text": "Unit tests, acceptance checks and interaction checks gate a tagged release; the installer puts the skill on every agent.",
+      "focus": [
+        "test-harnesses",
+        "package",
+        "install"
+      ]
+    }
+  ],
+  "notes": [
+    "Every command returns a JSON receipt; a non-zero exit is never success.",
+    "The artifact is one file: no server, no network, no downloaded fonts.",
+    "The toolbar exports SVG, PNG, WebP and JPEG, and copies the source JSON.",
+    "The installer rewrites the skill root and verifies one real render."
+  ]
+}

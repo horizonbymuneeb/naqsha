@@ -250,3 +250,51 @@ test("screenshot works on the real pipeline when it is ready", (t) => {
   assert.ok(fs.statSync(pngPath).size > 1000);
   assert.equal(ROOT.startsWith("/"), true);
 });
+
+// ---------------------------------------------------------------------------
+// version and help surface
+// ---------------------------------------------------------------------------
+
+const expectedVersion = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim();
+
+test("--version and version print `naqsha <VERSION>` and exit 0", () => {
+  for (const args of [["--version"], ["version"]]) {
+    const run = runCli(args);
+    assert.equal(run.status, 0, `${args.join(" ")}: ${run.stderr}`);
+    assert.equal(run.stdout, `naqsha ${expectedVersion}\n`, `${args.join(" ")} stdout`);
+    assert.equal(looksLikeStackTrace(run.stderr), false, `${args.join(" ")} printed a stack trace`);
+  }
+});
+
+test("version is read from the VERSION file, not hardcoded", () => {
+  const project = makeStubProject("version-file", { withLayout: false, withCompose: false });
+  fs.writeFileSync(path.join(project.dir, "VERSION"), "9.9.9-test\n");
+  for (const args of [["--version"], ["version"]]) {
+    const run = runEntry(project.cli, args);
+    assert.equal(run.status, 0, `${args.join(" ")}: ${run.stderr}`);
+    assert.equal(run.stdout.trim(), "naqsha 9.9.9-test", `${args.join(" ")}: ${run.stdout}`);
+  }
+});
+
+test("version does not mask unknown commands, and `version` takes no arguments", () => {
+  const unknown = runCli(["versionx"]);
+  assert.equal(unknown.status, 2);
+  assert.match(unknown.stderr, /unknown command "versionx"/);
+
+  const extra = runCli(["version", "extra"]);
+  assert.equal(extra.status, 2);
+  assert.match(extra.stderr, /too many arguments/);
+});
+
+test("--help mentions version, two runnable examples and every command", () => {
+  const run = runCli(["--help"]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /naqsha version \| --version/);
+  assert.match(run.stdout, /Examples:/);
+  assert.match(run.stdout, /naqsha render examples\/engine-repo\.architecture\.json diagram\.html/);
+  assert.match(run.stdout, /naqsha diff\s+examples\/engine-repo\.v31\.architecture\.json/);
+  assert.match(run.stdout, /Exit codes:/);
+  for (const command of ["validate", "render", "demo", "types", "doctor", "screenshot", "diff", "path", "convert", "mermaid", "fix", "version"]) {
+    assert.match(run.stdout, new RegExp(`naqsha ${command}\\b`), `help should mention ${command}`);
+  }
+});
