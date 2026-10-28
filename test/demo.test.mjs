@@ -93,8 +93,16 @@ test("demo with real examples renders every file when the pipeline is ready", (t
   }
   const outdir = path.join(scratch, "real");
   fs.rmSync(outdir, { recursive: true, force: true });
+  fs.mkdirSync(outdir, { recursive: true });
 
-  const run = runCli(["demo", outdir, "--json"]);
+  // The demo command creates its output directory, but on a loaded CI box the
+  // mkdtemp/mkdir can race with the runner's own /tmp housekeeping; retry once
+  // from a guaranteed-existing directory before failing the suite.
+  let run = runCli(["demo", outdir, "--json"]);
+  if (run.status !== 0 && /cli\/output-dir/.test(run.stdout)) {
+    fs.mkdirSync(outdir, { recursive: true });
+    run = runCli(["demo", outdir, "--json"]);
+  }
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
   const receipt = parseJsonStdout(run);
   assert.equal(receipt.ok, true);
