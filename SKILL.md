@@ -1,9 +1,9 @@
 ---
 name: naqsha
-description: "Draw architecture, workflow and sequence diagrams from a small JSON file into a self-contained interactive HTML page (light/dark, focus, zoom, print). Use when the user asks to visualize a system, a request path, a process, a service map, a state flow or a pipeline; when a codebase needs an architecture map; or when a text answer needs a shareable one-page diagram. Also use for \"diagram banao\", \"map it\", \"show the flow\", \"architecture figure\". Not for dashboards or charts."
+description: "Draw ten kinds of diagram — architecture, workflow, sequence, erd, class, tree, timeline, waterfall, dataflow, lifecycle — from a small JSON file into a self-contained interactive HTML page (walkthrough tours, diff, focus, zoom, search, export, print, light/dark). Use when the user asks to visualize a system, a request path, a process, a service map, a state flow, a hierarchy, a schema, a schedule or a pipeline; when a codebase needs an architecture map; or when a text answer needs a shareable one-page diagram. Also use for \"diagram banao\", \"map it\", \"show the flow\", \"architecture figure\". Not for dashboards or charts."
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.2.3"
   author: horizonbymuneeb
 ---
 

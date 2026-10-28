@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. Format: Keep a Changelog,
 versioning: semantic-ish (pre-1.0 was an internal MVP).
 
+## [1.2.3] — 2026-10-28
+
+### Changed
+- **Install documentation is per agent.** README now carries the agent →
+  skills-root → command table (DSH, Claude Code, Codex, Hermes, opencode,
+  Cursor, Gemini CLI) and the npm route; `docs/INSTALL.md` documents the full
+  flow, including custom prefixes, upgrading, uninstalling and troubleshooting.
+- The npm package is published as **`naqsha-cli`** — `npm i -g naqsha-cli`
+  installs the `naqsha` binary, and the same tarball ships `install.sh` and
+  `SKILL.md`, so the skill can be registered without cloning.
+- `SKILL.md` metadata refreshed: version follows the release and the description
+  lists all ten diagram types.
+
+### Verified
+- Fresh installs into isolated prefixes for DSH, Claude Code and Codex, plus a
+  global npm install followed by the shipped `install.sh` — each ends in the
+  installer's own validate + render check (125 KB artifact) and a working
+  `naqsha types` / `naqsha validate`.
+
 ## [1.2.2] — 2026-10-28
 
 ### Changed

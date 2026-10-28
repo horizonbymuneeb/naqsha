@@ -6,18 +6,47 @@
 self-contained interactive HTML out: no npm install for the reader, no network,
 no fonts, no hosted service, no account. Ten diagram types, ten native layouts.
 
+## Install
+
+One bash script, no dependencies, no network. It copies `SKILL.md + src/ +
+examples/` into the agent's skills root, rewrites the skill's absolute path, and
+verifies itself with a real validate + render.
+
 ```bash
+git clone https://github.com/horizonbymuneeb/naqsha && cd naqsha
 ./install.sh                 # every agent detected on this box
-./install.sh --agent dsh     # one agent
+./install.sh --agent claude  # just one
+./install.sh --list          # agent → skills root map
+```
+
+| Agent | Skill root | Command |
+|---|---|---|
+| DeepSeek Harness (DSH) | `~/.dsh-home/skills/naqsha` | `./install.sh --agent dsh` |
+| Claude Code | `~/.claude/skills/naqsha` | `./install.sh --agent claude` |
+| Codex | `~/.agents/skills/naqsha` | `./install.sh --agent codex` |
+| Hermes | `~/.agents/skills/naqsha` | `./install.sh --agent hermes` |
+| opencode | `~/.config/opencode/skills/naqsha` | `./install.sh --agent opencode` |
+| Cursor | `~/.cursor/skills/naqsha` | `./install.sh --agent cursor` |
+| Gemini CLI | `~/.gemini/skills/naqsha` | `./install.sh --agent gemini` |
+
+**From npm** (no clone needed — the tarball ships `SKILL.md`, `install.sh` and
+the examples):
+
+```bash
+npm i -g naqsha-cli                                  # the `naqsha` CLI
+bash "$(npm root -g)/naqsha-cli/install.sh" --agent all
 ```
 
 Published: **https://github.com/horizonbymuneeb/naqsha** ·
-[npm](https://www.npmjs.com/package/naqsha-cli) — `npm i -g naqsha-cli` (gives the
-`naqsha` CLI; then `naqsha types`). MIT, English-only, zero runtime dependencies.
+[npm](https://www.npmjs.com/package/naqsha-cli) — MIT, English-only, zero runtime
+dependencies, Node ≥18. Detailed per-agent steps: [docs/INSTALL.md](https://github.com/horizonbymuneeb/naqsha/blob/master/docs/INSTALL.md).
 
 Then ask your agent:
 
 > use naqsha to map this repo's runtime architecture
+
+The agent reads the skill, writes one JSON candidate, validates it, and hands you
+a single interactive HTML page.
 
 The examples in this repository are **real**: every artifact under `docs/`
 describes a production diagram engine — its module
@@ -209,16 +238,18 @@ not assertions about intentions. Both need a Chrome/Chromium binary
 
 ## Install details
 
-`install.sh` copies `SKILL.md + src/ + examples/` into each agent's skills root,
-rewrites the skill's absolute path, writes `~/.config/naqsha/env.sh` with a
-Chrome hint, adds a `~/.local/bin/naqsha` launcher, and then verifies itself with
-a real validate + render. Re-run it to upgrade; `--prefix DIR` keeps a test
-install out of your home directory.
+Per-agent commands, the npm route, custom prefixes, upgrading and uninstall are
+in **[docs/INSTALL.md](docs/INSTALL.md)**. The short version:
 
 ```bash
-./install.sh --list                    # detected agents
-./install.sh --prefix /tmp/test-install
+./install.sh --list                                  # agent → skills root
+./install.sh --prefix /tmp/test-install --agent dsh  # keep a test install out of $HOME
+./install.sh --agent all                             # no prompts, idempotent
 ```
+
+`install.sh` also writes `~/.config/naqsha/env.sh` with a Chrome hint and adds a
+`~/.local/bin/naqsha` launcher. Chrome is only needed for `naqsha screenshot`
+and the browser-check harnesses; rendering is pure Node.
 
 ## Uninstall
 
