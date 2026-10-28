@@ -1,11 +1,11 @@
 {
-  "name": "naqsha",
+  "name": "naqsha-cli",
   "version": "1.2.2",
-  "description": "Free diagram skill for every coding agent: one small JSON file in, one self-contained interactive HTML out. Architecture, workflow, sequence and seven more types, walkthrough tours, diagram diffs, path tracing, Mermaid round-trip \u2014 zero dependencies, offline, MIT.",
+  "description": "Free diagram skill for every coding agent: one small JSON file in, one self-contained interactive HTML out. Architecture, workflow, sequence and seven more types, walkthrough tours, diagram diffs, path tracing, Mermaid round-trip — zero dependencies, offline, MIT.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "naqsha": "./src/cli/naqsha.mjs"
+    "naqsha": "src/cli/naqsha.mjs"
   },
   "engines": {
     "node": ">=18"

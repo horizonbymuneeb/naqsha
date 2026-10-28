@@ -59,8 +59,9 @@ versioning: semantic-ish (pre-1.0 was an internal MVP).
   in `docs/`.
 - GitHub Actions CI (Node 20/22/24: unit tests, validate examples, render every
   example, Mermaid round-trip, npm pack).
-- npm packaging: `bin`, `files`, `scripts`, `engines` — `npm i -g naqsha`
-  installs the CLI.
+- npm packaging: `bin`, `files`, `scripts`, `engines` — published as
+  **`naqsha-cli`** on npm (`npm i -g naqsha-cli` installs the `naqsha` binary).
+  The bare `naqsha` name is rejected by the registry's similarity rules.
 
 ### Fixed
 - Full-row hit areas (`.node-hit`) for span/event/state shapes so a real click

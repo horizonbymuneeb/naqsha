@@ -1,6 +1,6 @@
 # naqsha
 
-[![ci](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/horizonbymuneeb/naqsha?color=B4661F)](https://github.com/horizonbymuneeb/naqsha/releases) [![license](https://img.shields.io/badge/license-MIT-1D6A62)](LICENSE)
+[![ci](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/horizonbymuneeb/naqsha?color=B4661F)](https://github.com/horizonbymuneeb/naqsha/releases) [![npm](https://img.shields.io/npm/v/naqsha-cli?color=CB3837&label=npm)](https://www.npmjs.com/package/naqsha-cli) [![license](https://img.shields.io/badge/license-MIT-1D6A62)](LICENSE)
 
 **A free diagram skill for every coding agent.** One small JSON file in, one
 self-contained interactive HTML out: no npm install for the reader, no network,
@@ -11,9 +11,9 @@ no fonts, no hosted service, no account. Ten diagram types, ten native layouts.
 ./install.sh --agent dsh     # one agent
 ```
 
-Published: **https://github.com/horizonbymuneeb/naqsha** · `npm i -g naqsha`
-(gives the `naqsha` CLI; then `naqsha types`). MIT, English-only, zero runtime
-dependencies.
+Published: **https://github.com/horizonbymuneeb/naqsha** ·
+[npm](https://www.npmjs.com/package/naqsha-cli) — `npm i -g naqsha-cli` (gives the
+`naqsha` CLI; then `naqsha types`). MIT, English-only, zero runtime dependencies.
 
 Then ask your agent:
 
