@@ -228,10 +228,10 @@ Every artifact in `docs/` is produced by the same commands the README shows, and
 every claim above is gated:
 
 ```bash
-node --test test/                  # 141 unit tests: validator, CLI, render, all ten layouts, diff, convert, repair
-./verify.sh                        # 152 acceptance checks: render every example, size, offline, determinism,
+node --test test/                  # 160 unit tests: validator, CLI, render, all ten layouts, diff, convert, repair
+./verify.sh                        # 165 acceptance checks: render every example, size, offline, determinism,
                                    #   layout sanity, real-Chrome overflow/console at 1440×980 and 390×844, screenshots
-node scripts/interact-check.mjs    # 47–53 live-HTML checks per artifact over CDP: focus/dim, tour, search,
+node scripts/interact-check.mjs    # 47–55 live-HTML checks per artifact over CDP: focus/dim, tour, search,
                                    #   share state, inspector, route tracing, export, theme, print, a11y, mobile
 ```
 

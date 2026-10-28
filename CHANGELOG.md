@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. Format: Keep a Changelog,
 versioning: semantic-ish (pre-1.0 was an internal MVP).
 
+## [1.2.5] — 2026-10-28
+
+### Fixed
+- README verification counts were stale after the 1.2.4 test additions: it now
+  states 160 unit tests, 165 acceptance checks and 47–55 live-HTML checks per
+  artifact, matching an independent gate run on the released tree.
+
 ## [1.2.4] — 2026-10-28
 
 ### Added
