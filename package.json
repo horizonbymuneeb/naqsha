@@ -46,7 +46,7 @@
     "type": "git",
     "url": "git+https://github.com/horizonbymuneeb/naqsha.git"
   },
-  "homepage": "https://github.com/horizonbymuneeb/naqsha#readme",
+  "homepage": "https://horizonbymuneeb.github.io/naqsha/",
   "author": "Muneeb Anjum <horizonbymuneeb@users.noreply.github.com>",
   "scripts": {
     "test": "node --test test/",
@@ -54,5 +54,8 @@
     "verify": "node scripts/verify.mjs",
     "interact": "node scripts/interact-check.mjs --html docs/demo-architecture.html",
     "demo": "node src/cli/naqsha.mjs demo /tmp/naqsha-demo"
+  },
+  "bugs": {
+    "url": "https://github.com/horizonbymuneeb/naqsha/issues"
   }
 }
