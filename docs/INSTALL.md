@@ -10,16 +10,27 @@ nothing runs in the background and no server is started.
 - The installer works offline. It copies files, rewrites the skill's absolute
   path, writes a Chrome hint, and finishes with a real validate + render.
 
-## Quick start
+## Quick start — no clone needed
 
 ```bash
-git clone https://github.com/horizonbymuneeb/naqsha
-cd naqsha
-./install.sh            # every agent detected on this machine
-./install.sh --list     # show the agent → skills-root map
+npm i -g naqsha-cli
+naqsha install-skill --agent all      # every agent detected on this machine
+naqsha install-skill --list           # show the agent → skills-root map
 ```
 
-Re-running it is safe and idempotent; it overwrites its own previous install.
+The npm package ships the whole skill payload (`SKILL.md`, `install.sh`, `src/`,
+`examples/`), so `install-skill` copies it into each agent's skills root, rewrites
+the skill's absolute path and finishes with a real validate + render.
+
+No npm, or offline? Clone and run the same installer:
+
+```bash
+git clone https://github.com/horizonbymuneeb/naqsha && cd naqsha
+./install.sh --agent all
+```
+
+Re-running either form is safe and idempotent; it overwrites its own previous
+install.
 
 ## One agent at a time
 
@@ -34,32 +45,39 @@ Re-running it is safe and idempotent; it overwrites its own previous install.
 | Gemini CLI | `--agent gemini` | `~/.gemini/skills/naqsha` |
 
 ```bash
-./install.sh --agent claude
-./install.sh --agent dsh
+naqsha install-skill --agent claude
+naqsha install-skill --agent dsh
 ```
+
+From a clone, the equivalent is `./install.sh --agent claude`.
 
 The agent discovers the skill from that folder — restart the agent session (or
 start a new chat) after installing so it re-reads its skill catalog.
 
-## From npm
+## npm details
 
-The npm package ships the same skill payload (`SKILL.md`, `install.sh`, `src/`,
-`examples/`), so you can install the CLI and register the skill without cloning:
+`npm i -g naqsha-cli` gives the `naqsha` CLI immediately (`naqsha types`,
+`naqsha render …`). `naqsha install-skill` is a thin, validated wrapper around the
+installer that ships inside the package:
 
 ```bash
 npm i -g naqsha-cli
-naqsha types                     # the CLI works immediately
-bash "$(npm root -g)/naqsha-cli/install.sh" --agent all
+naqsha install-skill --agent all     # or --agent claude / --agent dsh
+naqsha install-skill --list          # the map
 ```
 
 On systems where the global prefix needs `sudo`, either fix the npm prefix
 (`npm config set prefix ~/.local`) or install the skill from a clone instead.
 
+Windows: `install-skill` needs bash (WSL or Git Bash). Without bash, copy the
+package folder into the agent's skills root and replace `{{NAQSHA_ROOT}}` in
+`SKILL.md` with its absolute path.
+
 ## Custom prefix / CI
 
 ```bash
-./install.sh --prefix /tmp/naqsha-test --agent dsh
-./install.sh --prefix /tmp/naqsha-test --no-verify       # skip the self-check
+naqsha install-skill --prefix /tmp/naqsha-test --agent dsh
+naqsha install-skill --prefix /tmp/naqsha-test --no-verify   # skip the self-check
 ```
 
 `--prefix DIR` treats `DIR` as `$HOME` for detection and installation, which
@@ -95,9 +113,9 @@ the reader's side.
 ## Upgrade
 
 ```bash
+npm i -g naqsha-cli@latest && naqsha install-skill --agent all
+# or, from a clone:
 cd naqsha && git pull && ./install.sh --agent all
-# or, with npm:
-npm i -g naqsha-cli@latest && bash "$(npm root -g)/naqsha-cli/install.sh" --agent all
 ```
 
 ## Uninstall

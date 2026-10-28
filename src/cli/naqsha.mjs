@@ -54,6 +54,8 @@ Usage:
   naqsha convert  <in.mmd> <out.json> [--type auto|workflow|architecture|sequence] [--json]
   naqsha mermaid  <in.json> <out.mmd> [--json]
   naqsha fix      <in.json> [--write | --out <file>] [--json]
+  naqsha install-skill [--agent all|dsh|claude|codex|hermes|opencode|cursor|gemini]
+                       [--prefix DIR] [--no-verify] [--list]
   naqsha version | --version       print the CLI version
 
 Examples:
@@ -263,6 +265,10 @@ const FLAG_SPECS = Object.freeze({
   type: { kind: "choice", values: ["auto", "workflow", "architecture", "sequence"] },
   out: { kind: "string" },
   write: { kind: "boolean" },
+  agent: { kind: "string" },
+  prefix: { kind: "string" },
+  "no-verify": { kind: "boolean" },
+  list: { kind: "boolean" },
 });
 
 function parseCommandArgs(tokens, { allow, min, max }) {
@@ -617,6 +623,65 @@ async function cmdMermaid(tokens) {
     for (const w of warnings) process.stdout.write(`  warn ${w.code || "mermaid/warning"}: ${w.message || w}\n`);
   }
   return EXIT_OK;
+}
+
+
+// ---------------------------------------------------------------------------
+// install-skill
+// ---------------------------------------------------------------------------
+
+const INSTALL_AGENTS = ["all", "dsh", "claude", "codex", "hermes", "opencode", "cursor", "gemini"];
+
+function cmdInstallSkill(tokens) {
+  const { flags } = parseCommandArgs(tokens, {
+    allow: ["agent", "prefix", "no-verify", "list"],
+    min: 0,
+    max: 0,
+  });
+  const installer = path.join(ROOT, "install.sh");
+  if (!fs.existsSync(installer)) {
+    const error = cliError(
+      "cli/installer-missing",
+      `installer not found: ${installer}`,
+      installer,
+      "reinstall the package (npm i -g naqsha-cli) or run install.sh from a clone",
+    );
+    printErrorList([error]);
+    return EXIT_FAIL;
+  }
+  if (flags.agent !== undefined && !INSTALL_AGENTS.includes(flags.agent)) {
+    const error = cliError(
+      "cli/unknown-agent",
+      `unknown agent "${flags.agent}"`,
+      "--agent",
+      `use one of: ${INSTALL_AGENTS.join(", ")}`,
+    );
+    printErrorList([error]);
+    return EXIT_USAGE;
+  }
+  const bash = spawnSync("bash", ["-c", "exit 0"], { encoding: "utf8", timeout: 10000 });
+  if (bash.error || bash.status !== 0) {
+    const error = cliError(
+      "cli/bash-missing",
+      "bash is required to run the installer and was not found",
+      "bash",
+      "on Windows use WSL or Git Bash, or copy SKILL.md, src/ and examples/ into the agent's skills root manually (see docs/INSTALL.md)",
+    );
+    printErrorList([error]);
+    return EXIT_FAIL;
+  }
+  const args = [installer];
+  if (flags.list === true) args.push("--list");
+  if (flags.agent !== undefined) args.push("--agent", flags.agent);
+  if (flags.prefix !== undefined) args.push("--prefix", flags.prefix);
+  if (flags["no-verify"] === true) args.push("--no-verify");
+  const run = spawnSync("bash", args, { stdio: "inherit", env: process.env });
+  if (run.error) {
+    const error = cliError("cli/installer-failed", `installer failed: ${run.error.message}`, installer, "re-run install.sh directly to see the raw output");
+    printErrorList([error]);
+    return EXIT_FAIL;
+  }
+  return typeof run.status === "number" ? run.status : EXIT_FAIL;
 }
 
 // ---------------------------------------------------------------------------
@@ -1245,6 +1310,8 @@ async function main() {
       return cmdMermaid(rest);
     case "fix":
       return cmdFix(rest);
+    case "install-skill":
+      return cmdInstallSkill(rest);
     default:
       throw new UsageError(`unknown command "${command}"`);
   }

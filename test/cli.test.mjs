@@ -286,6 +286,32 @@ test("version does not mask unknown commands, and `version` takes no arguments",
   assert.match(extra.stderr, /too many arguments/);
 });
 
+test("install-skill --list prints the agent → skills-root map", () => {
+  const run = runCli(["install-skill", "--list"]);
+  assert.equal(run.status, 0, run.stderr);
+  for (const agent of ["dsh", "hermes", "codex", "claude", "opencode", "cursor", "gemini"]) {
+    assert.match(run.stdout, new RegExp(`^${agent}\\s+`, "m"), `${agent} missing from --list`);
+  }
+});
+
+test("install-skill rejects an unknown agent and unknown options with exit 2", () => {
+  const agent = runCli(["install-skill", "--agent", "nope"]);
+  assert.equal(agent.status, 2);
+  assert.match(agent.stderr, /unknown agent "nope"/);
+  const option = runCli(["install-skill", "--bogus"]);
+  assert.equal(option.status, 2);
+  assert.match(option.stderr, /unknown option "--bogus"/);
+});
+
+test("install-skill installs the skill payload into a prefix", () => {
+  const prefix = fs.mkdtempSync(path.join(scratch, "prefix-"));
+  fs.mkdirSync(path.join(prefix, ".claude"), { recursive: true });
+  const run = runCli(["install-skill", "--prefix", prefix, "--agent", "claude", "--no-verify"]);
+  assert.equal(run.status, 0, run.stderr);
+  assert.ok(fs.existsSync(path.join(prefix, ".claude", "skills", "naqsha", "SKILL.md")), "SKILL.md not installed");
+  assert.ok(fs.existsSync(path.join(prefix, ".claude", "skills", "naqsha", "examples", "engine-repo.architecture.json")), "examples not installed");
+});
+
 test("--help mentions version, two runnable examples and every command", () => {
   const run = runCli(["--help"]);
   assert.equal(run.status, 0, run.stderr);

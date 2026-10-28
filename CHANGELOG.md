@@ -3,6 +3,23 @@
 All notable changes to this project are documented here. Format: Keep a Changelog,
 versioning: semantic-ish (pre-1.0 was an internal MVP).
 
+## [1.2.6] — 2026-10-28
+
+### Added
+- **`naqsha install-skill`** — register the skill into an agent straight from the
+  npm package, no clone: `--agent all|dsh|claude|codex|hermes|opencode|cursor|gemini`,
+  `--prefix DIR`, `--no-verify`, `--list`. It runs the installer shipped in the
+  package, validates the agent name, and reports a clear error when bash is
+  missing (Windows).
+- Tests for `--list`, an install into a throwaway prefix, and the
+  unknown-agent/unknown-option exit codes.
+
+### Changed
+- README, `docs/INSTALL.md` and `docs/USAGE.md` now lead with the npm route
+  (`npm i -g naqsha-cli && naqsha install-skill --agent all`); the clone
+  (`./install.sh`) is documented as the alternative for contributors and offline
+  machines.
+
 ## [1.2.5] — 2026-10-28
 
 ### Fixed

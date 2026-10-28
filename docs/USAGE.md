@@ -4,28 +4,27 @@ Naqsha turns one small typed JSON file into one self-contained interactive HTML
 page. There is no server, no network request, no account and no runtime
 dependency: the page opens from `file://` and works offline.
 
-The commands below use the `naqsha` launcher written by `install.sh`. From a git
-checkout without the installer, replace `naqsha` with
-`node src/cli/naqsha.mjs` — every argument is identical.
+The commands below use the `naqsha` CLI. From a git checkout without the
+installer, replace `naqsha` with `node src/cli/naqsha.mjs` — every argument is
+identical.
 
 ```bash
-naqsha --version      # naqsha 1.2.3   (reads the VERSION file)
+naqsha --version      # the installed version (reads the VERSION file)
 naqsha version        # same output
-naqsha --help         # usage, two examples, exit codes
+naqsha --help         # usage, runnable examples, exit codes
 naqsha doctor         # node, chrome, install layout, end-to-end render
 ```
 
 ## Quick start
 
-1. Install the skill for the agents on this machine (one bash script, no
-   dependencies):
+1. Install the CLI and register the skill in your agents — no clone needed:
 
    ```bash
-   git clone https://github.com/horizonbymuneeb/naqsha && cd naqsha
-   ./install.sh --agent all
+   npm i -g naqsha-cli
+   naqsha install-skill --agent all
    ```
 
-   Per-agent commands, the npm route, custom prefixes and uninstall are in
+   Per-agent commands, custom prefixes, the clone route and uninstall are in
    [INSTALL.md](INSTALL.md).
 
 2. Render a bundled example and open the result:
