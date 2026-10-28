@@ -1,0 +1,12 @@
+%%{init: {"theme": "dark"}}%%
+flowchart TD
+  classDef bad fill:#f00
+  A[Web App] --> B[API]
+  style A fill:#0f0,stroke:#333
+  click A href "https://example.com"
+  B --> C[DB]
+  subgraph later [Later]
+    direction LR
+    C --> D[Report]
+  end
+  A:::bad --> E[Queue]

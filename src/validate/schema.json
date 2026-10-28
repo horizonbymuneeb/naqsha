@@ -1,0 +1,308 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://naqsha.dev/schema/ir-v1.json",
+  "title": "Naqsha IR v1",
+  "description": "Author-facing JSON for Naqsha: one small IR in, one self-contained interactive HTML out (src/CONTRACT.md \u00a71). This schema is the machine-readable form of the contract for documentation and optional future ajv use; src/validate/index.mjs is the zero-dependency source of truth. Cross-field rules that JSON Schema cannot express (and the validator enforces): node ids are unique; edge from/to must reference existing node ids and must not be equal; duplicate (from, to, label) edges are rejected; group ids are unique, group.nodes is a non-empty subset of node ids and no node may appear in two groups; node.group must reference a declared group; group.kind 'fragment' is only allowed for type 'sequence'; nodes/edges/groups/notes counts and label lengths are bounded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "title",
+    "type",
+    "nodes"
+  ],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Human diagram title (trimmed length 1..80 characters), e.g. \"Checkout service map\"."
+    },
+    "subtitle": {
+      "type": "string",
+      "maxLength": 120,
+      "description": "Optional context line under the title, max 120 characters, e.g. \"production, 2026-10\"."
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "architecture",
+        "workflow",
+        "sequence",
+        "erd",
+        "class",
+        "tree",
+        "timeline",
+        "waterfall",
+        "dataflow",
+        "lifecycle"
+      ],
+      "description": "Diagram family: sequence = participants + ordered messages; workflow = ordered steps; architecture = services and boundaries; erd = tables + columns; class = types + relations; tree = single-parent hierarchy; timeline = dated events; waterfall = spans with start + duration; dataflow = pipeline stages; lifecycle = states + transitions."
+    },
+    "direction": {
+      "type": "string",
+      "enum": [
+        "TB",
+        "LR"
+      ],
+      "default": "TB",
+      "description": "Layout direction, top-to-bottom or left-to-right. Ignored for type 'sequence'."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "description": "1..40 nodes. For sequence diagrams these are participants in declared order.",
+      "items": {
+        "$ref": "#/$defs/node"
+      }
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 80,
+      "default": [],
+      "description": "0..80 directed edges. For sequence diagrams these are messages in declared order.",
+      "items": {
+        "$ref": "#/$defs/edge"
+      }
+    },
+    "groups": {
+      "type": "array",
+      "description": "Optional visual groups (zones/boundaries) or sequence fragments. Group ids unique; member nodes must exist and belong to at most one group.",
+      "items": {
+        "$ref": "#/$defs/group"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "maxItems": 4,
+      "description": "At most 4 footer notes, each max 140 characters.",
+      "items": {
+        "type": "string",
+        "maxLength": 140
+      }
+    }
+  },
+  "allOf": [
+    {
+      "description": "group.kind 'fragment' is only valid for type 'sequence'.",
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "not": {
+              "const": "sequence"
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "properties": {
+                "kind": {
+                  "not": {
+                    "const": "fragment"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$",
+      "description": "Lowercase kebab-case id: start with a letter, then a-z, 0-9 or '-', max 32 characters. Unique within its collection."
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Short human label shown in the card; over 40 characters warns about wrapping."
+        },
+        "sublabel": {
+          "type": "string",
+          "description": "Optional detail line under the label; soft limit 80 characters (warning only)."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "service",
+            "datastore",
+            "actor",
+            "external",
+            "queue",
+            "compute",
+            "security",
+            "state",
+            "note"
+          ],
+          "description": "Node kind; drives shape and colour. service=app/API, datastore=db/cache, actor=human, external=third party, queue=broker, compute=worker, security=auth/gateway, state=step/status, note=annotation."
+        },
+        "group": {
+          "type": "string",
+          "description": "Optional id of a declared group. Must match a group.id in groups[]. Missing/mismatched membership is warned, unknown groups are an error."
+        },
+        "attributes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "description": "ERD columns: {name, type, key, ref}.",
+          "items": {
+            "type": "object"
+          }
+        },
+        "members": {
+          "type": "array",
+          "maxItems": 12,
+          "description": "Class members as strings.",
+          "items": {
+            "type": "string",
+            "maxLength": 60
+          }
+        },
+        "stereotype": {
+          "type": "string",
+          "enum": [
+            "interface",
+            "abstract",
+            "class"
+          ]
+        },
+        "stage": {
+          "type": "string",
+          "description": "Dataflow stage name; declaration order defines columns."
+        },
+        "at": {
+          "description": "Timeline position: ISO date string or finite number.",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "start": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Waterfall span start, same unit as duration."
+        },
+        "duration": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Waterfall span duration, > 0."
+        },
+        "lane": {
+          "type": "string",
+          "description": "Optional lane/row label."
+        },
+        "role": {
+          "type": "string",
+          "description": "Renderer hint (root/start/end/state/leaf) produced by layout."
+        }
+      },
+      "description": "One node. `kind` is required for architecture/workflow/sequence and optional for the v1.2 types (they default per type)."
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": "string",
+          "description": "Source node id. Must exist in nodes and differ from 'to'."
+        },
+        "to": {
+          "type": "string",
+          "description": "Target node id. Must exist in nodes and differ from 'from'."
+        },
+        "label": {
+          "type": "string",
+          "description": "Optional edge label, e.g. \"GET /cart\"; soft limit 32 characters (warning only)."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "main",
+            "return",
+            "async",
+            "security",
+            "message",
+            "data"
+          ],
+          "description": "Edge kind; drives stroke and arrow style. main=request, return=response, async=fire-and-forget, security=auth, message=sequence message, data=db/cache I/O."
+        },
+        "cardinality": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "1:n",
+            "n:m"
+          ],
+          "description": "ERD relationship cardinality."
+        }
+      },
+      "description": "One relationship. `kind` is required for architecture/workflow/sequence and optional for the v1.2 types."
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "nodes"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "zone",
+            "boundary",
+            "fragment"
+          ],
+          "default": "zone",
+          "description": "zone/boundary = box around nodes; fragment = loop/alt band, only for type 'sequence'."
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Non-empty subset of node ids; a node may appear in at most one group.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

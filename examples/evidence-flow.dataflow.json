@@ -1,0 +1,102 @@
+{
+  "title": "Repository Evidence",
+  "subtitle": "from source files to source-backed diagram nodes",
+  "type": "dataflow",
+  "nodes": [
+    {
+      "id": "repo",
+      "label": "Repository",
+      "stage": "read",
+      "kind": "datastore"
+    },
+    {
+      "id": "reader",
+      "label": "File Reader",
+      "stage": "read",
+      "kind": "service"
+    },
+    {
+      "id": "symbols",
+      "label": "Symbol Extract",
+      "stage": "extract",
+      "kind": "compute"
+    },
+    {
+      "id": "author",
+      "label": "Author Sources",
+      "stage": "author",
+      "kind": "service"
+    },
+    {
+      "id": "ir",
+      "label": "Typed IR",
+      "stage": "author",
+      "kind": "datastore"
+    },
+    {
+      "id": "renderer",
+      "label": "Renderer",
+      "stage": "render",
+      "kind": "service"
+    },
+    {
+      "id": "artifact",
+      "label": "HTML Artifact",
+      "stage": "render",
+      "kind": "datastore"
+    },
+    {
+      "id": "reader2",
+      "label": "Reader",
+      "stage": "share",
+      "kind": "actor"
+    }
+  ],
+  "edges": [
+    {
+      "from": "repo",
+      "to": "reader",
+      "label": "walk files",
+      "kind": "data"
+    },
+    {
+      "from": "reader",
+      "to": "symbols",
+      "label": "lines + symbols",
+      "kind": "main"
+    },
+    {
+      "from": "symbols",
+      "to": "author",
+      "label": "paths, commit",
+      "kind": "main"
+    },
+    {
+      "from": "author",
+      "to": "ir",
+      "label": "sources[]",
+      "kind": "data"
+    },
+    {
+      "from": "ir",
+      "to": "renderer",
+      "label": "nodes + evidence",
+      "kind": "main"
+    },
+    {
+      "from": "renderer",
+      "to": "artifact",
+      "label": "SRC badges",
+      "kind": "data"
+    },
+    {
+      "from": "artifact",
+      "to": "reader2",
+      "label": "source cards",
+      "kind": "main"
+    }
+  ],
+  "notes": [
+    "Evidence is pinned to one commit; ordinary artifacts stay source-free."
+  ]
+}

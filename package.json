@@ -1,0 +1,58 @@
+{
+  "name": "naqsha",
+  "version": "1.2.2",
+  "description": "Free diagram skill for every coding agent: one small JSON file in, one self-contained interactive HTML out. Architecture, workflow, sequence and seven more types, walkthrough tours, diagram diffs, path tracing, Mermaid round-trip \u2014 zero dependencies, offline, MIT.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "naqsha": "./src/cli/naqsha.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "SKILL.md",
+    "README.md",
+    "VERSION",
+    "LICENSE",
+    "LICENSES/ATTRIBUTION.md",
+    "src/",
+    "examples/",
+    "brand/",
+    "install.sh",
+    "test/mermaid/",
+    "CHANGELOG.md"
+  ],
+  "keywords": [
+    "diagram",
+    "architecture-diagram",
+    "sequence-diagram",
+    "workflow",
+    "diagram-diff",
+    "agent-skill",
+    "coding-agents",
+    "claude-code",
+    "codex",
+    "deepseek-harness",
+    "dsh",
+    "mermaid",
+    "self-contained-html",
+    "offline",
+    "zero-dependency",
+    "json-to-html",
+    "visualization"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/horizonbymuneeb/naqsha.git"
+  },
+  "homepage": "https://github.com/horizonbymuneeb/naqsha#readme",
+  "author": "Muneeb Anjum <horizonbymuneeb@users.noreply.github.com>",
+  "scripts": {
+    "test": "node --test test/",
+    "types": "node src/cli/naqsha.mjs types",
+    "verify": "node scripts/verify.mjs",
+    "interact": "node scripts/interact-check.mjs --html docs/demo-architecture.html",
+    "demo": "node src/cli/naqsha.mjs demo /tmp/naqsha-demo"
+  }
+}

@@ -1,0 +1,8 @@
+flowchart TD
+  A[Client] -->|GET /cart| B[API]
+  B -- query --> C[Database]
+  C -.->|miss| D[Worker]
+  D ==> E[Queue]
+  E --- F[Consumer]
+  F --x G[Dead Letter]
+  B --- H[Health Check]

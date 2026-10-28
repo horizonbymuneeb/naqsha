@@ -1,0 +1,49 @@
+{
+  "title": "Checkout Request",
+  "subtitle": "612 ms cold cache, 80 ms warm",
+  "type": "waterfall",
+  "nodes": [
+    {
+      "id": "queue",
+      "label": "edge queue",
+      "start": 0,
+      "duration": 180
+    },
+    {
+      "id": "gateway",
+      "label": "API gateway",
+      "start": 180,
+      "duration": 90
+    },
+    {
+      "id": "checkout",
+      "label": "checkout handler",
+      "start": 240,
+      "duration": 40
+    },
+    {
+      "id": "pricing",
+      "label": "pricing rules",
+      "start": 280,
+      "duration": 120
+    },
+    {
+      "id": "cache",
+      "label": "redis read",
+      "start": 300,
+      "duration": 60
+    },
+    {
+      "id": "db",
+      "label": "postgres query",
+      "start": 400,
+      "duration": 190
+    },
+    {
+      "id": "render",
+      "label": "render + serialize",
+      "start": 590,
+      "duration": 22
+    }
+  ]
+}

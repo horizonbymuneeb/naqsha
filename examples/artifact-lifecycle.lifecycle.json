@@ -1,0 +1,73 @@
+{
+  "title": "Artifact Lifecycle",
+  "subtitle": "candidate → gated → published, or last good kept",
+  "type": "lifecycle",
+  "nodes": [
+    {
+      "id": "candidate",
+      "label": "Candidate"
+    },
+    {
+      "id": "invalid",
+      "label": "Invalid"
+    },
+    {
+      "id": "delivered",
+      "label": "Delivered"
+    },
+    {
+      "id": "checked",
+      "label": "Checked"
+    },
+    {
+      "id": "published",
+      "label": "Published"
+    },
+    {
+      "id": "lastgood",
+      "label": "Last Good"
+    }
+  ],
+  "edges": [
+    {
+      "from": "candidate",
+      "to": "invalid",
+      "label": "gate 1 fails"
+    },
+    {
+      "from": "invalid",
+      "to": "candidate",
+      "label": "repair"
+    },
+    {
+      "from": "candidate",
+      "to": "delivered",
+      "label": "valid"
+    },
+    {
+      "from": "delivered",
+      "to": "checked",
+      "label": "artifact check"
+    },
+    {
+      "from": "checked",
+      "to": "published",
+      "label": "browser passes"
+    },
+    {
+      "from": "checked",
+      "to": "lastgood",
+      "label": "browser fails"
+    },
+    {
+      "from": "published",
+      "to": "candidate",
+      "label": "next request"
+    },
+    {
+      "from": "lastgood",
+      "to": "candidate",
+      "label": "next request"
+    }
+  ]
+}

@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en" data-theme="{{MODE}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="generator" content="naqsha">
+<title>{{TITLE}}</title>
+<style>
+{{STYLE}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="brandbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><path d="M3.6 15.4H9.2V5.4h7.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="3.6" cy="15.4" r="1.7" fill="currentColor"></circle><circle cx="16.4" cy="5.4" r="1.7" fill="currentColor"></circle></svg>
+      <span class="wordmark">naqsha</span>
+      <span class="eyebrow">{{TYPE}}</span>
+      <span class="brand-rule" aria-hidden="true"></span>
+    </div>
+    <div class="toolbar" role="toolbar" aria-label="Diagram controls">
+      <button type="button" class="tbtn" id="theme-toggle" data-mode="{{MODE}}" aria-label="{{THEME_LABEL}}" title="{{THEME_LABEL}}">
+        <svg class="ico ico-auto" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6"></circle><path class="fillmark" d="M8 2.4a5.6 5.6 0 0 0 0 11.2z"></path></svg>
+        <svg class="ico ico-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.9"></circle><path d="M8 1.1v1.7M8 13.2v1.7M1.1 8h1.7M13.2 8h1.7M3.1 3.1l1.2 1.2M11.7 11.7l1.2 1.2M12.9 3.1l-1.2 1.2M4.3 11.7l-1.2 1.2"></path></svg>
+        <svg class="ico ico-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.1 9.7a5.6 5.6 0 0 1-6.8-6.8 5.6 5.6 0 1 0 6.8 6.8z"></path></svg>
+      </button>
+      <span class="tsep" aria-hidden="true"></span>
+      <button type="button" class="tbtn" id="zoom-out" aria-label="Zoom out" title="Zoom out">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="4.2"></circle><path d="M10.1 10.1 14 14M4.9 6.9h4"></path></svg>
+      </button>
+      <span class="zoom-readout" id="zoom-readout" aria-hidden="true">100%</span>
+      <button type="button" class="tbtn" id="zoom-in" aria-label="Zoom in" title="Zoom in">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="4.2"></circle><path d="M10.1 10.1 14 14M4.9 6.9h4M6.9 4.9v4"></path></svg>
+      </button>
+      <button type="button" class="tbtn" id="zoom-reset" aria-label="Reset view and focus (0)" title="Reset view and focus (0)">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.7"></path><path d="M13.3 2.2v3.1h-3.1"></path></svg>
+      </button>
+      <span class="tsep" aria-hidden="true"></span>
+      <button type="button" class="tbtn tbtn-tool" id="search-btn" aria-label="Search nodes" title="Search nodes (/ or Ctrl+F)" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="3.8"></circle><path d="M9.7 9.7 13.4 13.4"></path></svg>
+      </button>
+      <button type="button" class="tbtn tbtn-tool" id="trace-btn" aria-label="Trace a route between two nodes" title="Trace a route (r)" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 11.8 7 6.5l2.2 2.9 2.6-4.2"></path><circle cx="4.2" cy="11.8" r="1.3"></circle><circle cx="11.8" cy="5.2" r="1.3"></circle></svg>
+      </button>
+      <button type="button" class="tbtn tbtn-tool" id="copy-link" aria-label="Copy link to this view" title="Copy link to this view">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.6 9.4 9.4 6.6M5.9 8.1 4.4 9.6a2.6 2.6 0 0 0 3.7 3.7l1.5-1.5M10.1 7.9l1.5-1.5a2.6 2.6 0 0 0-3.7-3.7L6.4 4.2"></path></svg>
+      </button>
+      <button type="button" class="tbtn tbtn-tool" id="present-btn" aria-label="Presentation mode with laser pointer" title="Presentation mode (p)" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.3"></circle><path d="M8 1.7v2.1M8 12.2v2.1M1.7 8h2.1M12.2 8h2.1"></path></svg>
+      </button>
+      <span class="tsep" aria-hidden="true"></span>
+      <button type="button" class="tbtn" id="print-btn" aria-label="Print diagram" title="Print diagram">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.6 6V3h6.8v3"></path><rect x="2.5" y="6" width="11" height="5.2" rx="1"></rect><path d="M4.6 9.6h6.8V14H4.6z"></path></svg>
+      </button>
+      <div class="export-wrap" id="export-wrap">
+        <button type="button" class="tbtn" id="export-btn" aria-label="Export diagram" title="Export diagram" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.4v7.1M5.1 6.8 8 9.7l2.9-2.9M2.9 12.9h10.2"></path></svg>
+        </button>
+        <div class="export-menu" id="export-menu" role="menu" aria-label="Export options" hidden>
+          <button type="button" class="export-item" id="export-svg" role="menuitem"><span class="export-fmt">SVG</span><span class="export-name">Download SVG</span></button>
+          <button type="button" class="export-item" id="export-png" role="menuitem"><span class="export-fmt">PNG</span><span class="export-name">Download PNG (2×)</span></button>
+          <button type="button" class="export-item" id="export-webp" role="menuitem"><span class="export-fmt">WEBP</span><span class="export-name">Download WebP</span></button>
+          <button type="button" class="export-item" id="export-jpeg" role="menuitem"><span class="export-fmt">JPEG</span><span class="export-name">Download JPEG</span></button>
+          <button type="button" class="export-item" id="copy-mermaid" role="menuitem"><span class="export-fmt">MMD</span><span class="export-name">Copy as Mermaid</span></button>
+          <button type="button" class="export-item" id="copy-json" role="menuitem"><span class="export-fmt">JSON</span><span class="export-name">Copy source IR</span></button>
+        </div>
+      </div>
+      <button type="button" class="tbtn" id="help-btn" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-haspopup="dialog">
+        <span class="tbtn-glyph" aria-hidden="true">?</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="titleblock" aria-labelledby="doc-title">
+    <div class="doc-head">
+      <h1 class="doc-title" id="doc-title">{{TITLE}}</h1>
+      {{SUBTITLE}}
+    </div>
+    <div class="doc-side">
+      <div class="doc-meta">{{META}}</div>
+      {{DIFF_SUMMARY}}
+    </div>
+  </section>
+
+  {{TOURBAR}}
+
+  <main class="stage" id="stage">
+    <svg class="grid" aria-hidden="true"><defs><pattern id="naqsha-dotgrid" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="dot" cx="1" cy="1" r="1"></circle></pattern></defs><rect width="100%" height="100%" fill="url(#naqsha-dotgrid)"></rect></svg>
+    <div class="canvas-inner" id="canvas-inner">
+{{BODY}}
+    </div>
+    <div class="canvas-note" aria-hidden="true">{{CANVAS_META}}</div>
+    <div class="searchbar" id="searchbar" hidden>
+      <svg class="search-ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.9" cy="6.9" r="3.8"></circle><path d="M9.7 9.7 13.4 13.4"></path></svg>
+      <input type="text" id="search-input" class="search-input" placeholder="Filter label, sublabel, kind" aria-label="Search nodes by label, sublabel or kind. Enter jumps to the first match." autocomplete="off" spellcheck="false">
+      <span class="search-count" id="search-count"></span>
+      <button type="button" class="search-close" id="search-close" aria-label="Close search" title="Close search (Esc)">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.8 2.8l6.4 6.4M9.2 2.8 2.8 9.2"></path></svg>
+      </button>
+    </div>
+    <div class="minimap" id="minimap" hidden>
+      <svg id="minimap-svg" viewBox="0 0 100 100" tabindex="0" role="group" aria-label="Minimap: click or drag to move the view, arrow keys pan">
+        <g id="minimap-content"></g>
+        <rect class="mm-viewport" id="minimap-viewport" x="0" y="0" width="0" height="0" rx="1"></rect>
+      </svg>
+    </div>
+    <aside class="inspector" id="inspector" hidden tabindex="-1" aria-labelledby="inspector-title" aria-label="Node inspector">
+      <div class="insp-head">
+        <span class="insp-eyebrow">Inspector</span>
+        <button type="button" class="tbtn insp-close" id="inspector-close" aria-label="Close inspector" title="Close inspector (Esc)">
+          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.8 2.8l6.4 6.4M9.2 2.8 2.8 9.2"></path></svg>
+        </button>
+      </div>
+      <h2 class="insp-title" id="inspector-title"></h2>
+      <p class="insp-sub" id="inspector-sub"></p>
+      <div class="insp-tags" id="inspector-tags"></div>
+      <div class="insp-route" id="inspector-route" hidden></div>
+      <div class="insp-cols">
+        <section class="insp-col" aria-labelledby="inspector-in-label">
+          <h3 class="insp-h" id="inspector-in-label">Inbound <span class="insp-n" id="inspector-in-count">0</span></h3>
+          <ul class="insp-list" id="inspector-in"></ul>
+        </section>
+        <section class="insp-col" aria-labelledby="inspector-out-label">
+          <h3 class="insp-h" id="inspector-out-label">Outbound <span class="insp-n" id="inspector-out-count">0</span></h3>
+          <ul class="insp-list" id="inspector-out"></ul>
+        </section>
+      </div>
+      <button type="button" class="insp-trace" id="inspector-trace" aria-pressed="false" title="Trace a route from this node (r)">Trace from here <kbd>r</kbd></button>
+    </aside>
+    <button type="button" class="focus-exit" id="focus-exit" aria-label="Exit focus mode">exit focus <kbd>f</kbd></button>
+  </main>
+
+  <div class="legend" id="legend" aria-label="Edge legend">{{LEGEND}}</div>
+  <section class="notes" aria-label="Notes">{{NOTES}}</section>
+
+  <footer class="footer">
+    <div class="footer-left"><span class="footer-brand">naqsha</span><span class="footer-sep" aria-hidden="true">·</span><span class="footer-title">{{TITLE}}</span></div>
+    <div class="footer-right"><span class="footer-hint">{{FOOTER_HINT}}</span><span class="footer-div" aria-hidden="true"></span><span class="footer-license">free · MIT</span></div>
+  </footer>
+
+  <div class="laser" id="laser" aria-hidden="true"></div>
+  <div class="help-backdrop" id="help-backdrop" hidden></div>
+  <section class="help-sheet" id="help-sheet" role="dialog" aria-modal="true" aria-labelledby="help-title" hidden>
+    <div class="help-head">
+      <div><span class="help-eyebrow">Reference</span><h2 class="help-title" id="help-title">Keyboard</h2></div>
+      <button type="button" class="tbtn help-close" id="help-close" aria-label="Close shortcut sheet" title="Close (Esc)">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.8 2.8l6.4 6.4M9.2 2.8 2.8 9.2"></path></svg>
+      </button>
+    </div>
+    <div class="help-list" id="help-list"></div>
+  </section>
+
+  <p id="status" class="sr-only" role="status" aria-live="polite"></p>
+</div>
+<script type="application/json" id="naqsha-ir">{{IR_JSON}}</script>
+{{CONFIG}}
+<script>
+{{SCRIPT}}
+</script>
+</body>
+</html>

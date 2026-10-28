@@ -1,0 +1,295 @@
+{
+  "title": "Diagram Engine",
+  "subtitle": "v3.2 — engine, delivery gates, integrations",
+  "type": "architecture",
+  "direction": "TB",
+  "groups": [
+    {
+      "id": "surface",
+      "label": "Agent Surface",
+      "kind": "boundary",
+      "nodes": [
+        "agent",
+        "skill"
+      ]
+    },
+    {
+      "id": "engine",
+      "label": "Engine",
+      "kind": "zone",
+      "nodes": [
+        "cli",
+        "validators",
+        "layout",
+        "renderers",
+        "template",
+        "explainer",
+        "evidence"
+      ]
+    },
+    {
+      "id": "delivery",
+      "label": "Delivery",
+      "kind": "zone",
+      "nodes": [
+        "finalize",
+        "atomic",
+        "browsercheck",
+        "preview"
+      ]
+    },
+    {
+      "id": "integrations",
+      "label": "Integrations",
+      "kind": "boundary",
+      "nodes": [
+        "dsh"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "agent",
+      "label": "Agent",
+      "sublabel": "reads SKILL.md, writes candidate",
+      "kind": "actor"
+    },
+    {
+      "id": "skill",
+      "label": "SKILL.md",
+      "sublabel": "authoring contract, bounded repair",
+      "kind": "note",
+      "group": "surface"
+    },
+    {
+      "id": "cli",
+      "label": "bin/cli.mjs",
+      "sublabel": "validate · render · deliver · finalize",
+      "kind": "service",
+      "group": "engine"
+    },
+    {
+      "id": "validators",
+      "label": "Generated Validators",
+      "sublabel": "JSON Schema + cross-field rules",
+      "kind": "service",
+      "group": "engine"
+    },
+    {
+      "id": "layout",
+      "label": "Layout & Routing",
+      "sublabel": "placement, orthogonal routes, labels",
+      "kind": "compute",
+      "group": "engine"
+    },
+    {
+      "id": "renderers",
+      "label": "Renderers",
+      "sublabel": "10 modes + explainer panel",
+      "kind": "service",
+      "group": "engine"
+    },
+    {
+      "id": "template",
+      "label": "assets/template.html",
+      "sublabel": "viewer runtime bundle",
+      "kind": "datastore",
+      "group": "engine"
+    },
+    {
+      "id": "explainer",
+      "label": "explainer/",
+      "sublabel": "one-page answers, charts, sources",
+      "kind": "service",
+      "group": "engine"
+    },
+    {
+      "id": "evidence",
+      "label": "Repository Evidence",
+      "sublabel": "commit-pinned sources",
+      "kind": "security",
+      "group": "engine"
+    },
+    {
+      "id": "finalize",
+      "label": "bin/finalize.mjs",
+      "sublabel": "validate → deliver → check → browser",
+      "kind": "service",
+      "group": "delivery"
+    },
+    {
+      "id": "atomic",
+      "label": "Atomic Output",
+      "sublabel": "temp write + rename",
+      "kind": "compute",
+      "group": "delivery"
+    },
+    {
+      "id": "browsercheck",
+      "label": "Browser Check",
+      "sublabel": "real Chrome over CDP",
+      "kind": "security",
+      "group": "delivery"
+    },
+    {
+      "id": "preview",
+      "label": "Live Preview",
+      "sublabel": "loopback watch, last-good",
+      "kind": "service",
+      "group": "delivery"
+    },
+    {
+      "id": "dsh",
+      "label": "Host Adapter 1.0.0",
+      "sublabel": "pins engine 3.0",
+      "kind": "external",
+      "group": "integrations"
+    },
+    {
+      "id": "artifact",
+      "label": "Standalone HTML",
+      "sublabel": "one file, no dependencies",
+      "kind": "datastore"
+    }
+  ],
+  "edges": [
+    {
+      "from": "agent",
+      "to": "skill",
+      "label": "read",
+      "kind": "main"
+    },
+    {
+      "from": "agent",
+      "to": "cli",
+      "label": "run command",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "validators",
+      "label": "validate",
+      "kind": "main"
+    },
+    {
+      "from": "validators",
+      "to": "layout",
+      "label": "accepted IR",
+      "kind": "main"
+    },
+    {
+      "from": "layout",
+      "to": "renderers",
+      "label": "geometry",
+      "kind": "main"
+    },
+    {
+      "from": "renderers",
+      "to": "template",
+      "label": "compose",
+      "kind": "main"
+    },
+    {
+      "from": "renderers",
+      "to": "explainer",
+      "label": "panels + charts",
+      "kind": "main"
+    },
+    {
+      "from": "evidence",
+      "to": "renderers",
+      "label": "node sources",
+      "kind": "data"
+    },
+    {
+      "from": "finalize",
+      "to": "validators",
+      "label": "gate 1",
+      "kind": "security"
+    },
+    {
+      "from": "finalize",
+      "to": "atomic",
+      "label": "write",
+      "kind": "main"
+    },
+    {
+      "from": "finalize",
+      "to": "browsercheck",
+      "label": "gate 4",
+      "kind": "security"
+    },
+    {
+      "from": "browsercheck",
+      "to": "artifact",
+      "label": "verify",
+      "kind": "data"
+    },
+    {
+      "from": "template",
+      "to": "artifact",
+      "label": "embed",
+      "kind": "data"
+    },
+    {
+      "from": "preview",
+      "to": "cli",
+      "label": "re-render on save",
+      "kind": "async"
+    },
+    {
+      "from": "dsh",
+      "to": "skill",
+      "label": "installs",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "artifact",
+      "label": "deliver",
+      "kind": "main"
+    }
+  ],
+  "walkthrough": [
+    {
+      "title": "An agent authors a candidate",
+      "text": "The agent reads SKILL.md, writes a typed JSON candidate, and runs the CLI — no editor, no drag-and-drop.",
+      "focus": [
+        "agent",
+        "skill",
+        "cli"
+      ]
+    },
+    {
+      "title": "Validation, then geometry",
+      "text": "Generated validators reject bad IR with rule codes, then the layout engine places nodes and routes relationships.",
+      "focus": [
+        "validators",
+        "layout",
+        "renderers"
+      ]
+    },
+    {
+      "title": "One file is composed",
+      "text": "The renderer fills the viewer template and the result is a single standalone HTML artifact.",
+      "focus": [
+        "renderers",
+        "template",
+        "artifact"
+      ]
+    },
+    {
+      "title": "Delivery is gated",
+      "text": "Finalize only replaces the target when validation, delivery, artifact check and a real-browser check all pass; a failure keeps the last good file.",
+      "focus": [
+        "finalize",
+        "atomic",
+        "browsercheck"
+      ]
+    }
+  ],
+  "notes": [
+    "Measured on this box: finalize 10.5 s, browser-check 9.7 s.",
+    "The host adapter pins an earlier engine line, not this release."
+  ]
+}

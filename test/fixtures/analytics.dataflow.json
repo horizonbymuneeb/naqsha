@@ -1,0 +1,87 @@
+{
+  "title": "Analytics Pipeline",
+  "subtitle": "from click to dashboard",
+  "type": "dataflow",
+  "nodes": [
+    {
+      "id": "sdk",
+      "label": "Web SDK",
+      "stage": "collect",
+      "kind": "service"
+    },
+    {
+      "id": "api",
+      "label": "Collect API",
+      "stage": "collect",
+      "kind": "service"
+    },
+    {
+      "id": "raw",
+      "label": "Raw events",
+      "stage": "store",
+      "kind": "datastore"
+    },
+    {
+      "id": "enrich",
+      "label": "Enricher",
+      "stage": "transform",
+      "kind": "compute"
+    },
+    {
+      "id": "sessions",
+      "label": "Session rollups",
+      "stage": "store",
+      "kind": "datastore"
+    },
+    {
+      "id": "bi",
+      "label": "BI tables",
+      "stage": "serve",
+      "kind": "datastore"
+    },
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "stage": "serve",
+      "kind": "external"
+    }
+  ],
+  "edges": [
+    {
+      "from": "sdk",
+      "to": "api",
+      "label": "batch 20",
+      "kind": "main"
+    },
+    {
+      "from": "api",
+      "to": "raw",
+      "label": "append",
+      "kind": "data"
+    },
+    {
+      "from": "raw",
+      "to": "enrich",
+      "label": "stream",
+      "kind": "main"
+    },
+    {
+      "from": "enrich",
+      "to": "sessions",
+      "label": "upsert",
+      "kind": "data"
+    },
+    {
+      "from": "sessions",
+      "to": "bi",
+      "label": "nightly",
+      "kind": "async"
+    },
+    {
+      "from": "bi",
+      "to": "dashboard",
+      "label": "query",
+      "kind": "data"
+    }
+  ]
+}

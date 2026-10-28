@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant U as User
+  actor A as Admin
+  U->>+S: open dashboard
+  S-->>-U: cached page
+  Note over U,S: browser cache warm
+  loop every 5 minutes
+    S->>D: fetch metrics
+    D-->>S: rows
+  end
+  A->>S: rotate token
+  S--xD: invalidate

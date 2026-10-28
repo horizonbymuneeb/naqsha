@@ -1,0 +1,6 @@
+flowchart LR
+  write[Write Path] --> cache[("Redis")]
+  cache --> store[(Object Store)]
+  store --> db[Database]
+  db --> read[Read Path]
+  read --> api((API))

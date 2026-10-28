@@ -1,0 +1,14 @@
+sequenceDiagram
+  participant C as Client
+  participant G as Gateway
+  participant DB as Postgres
+  C->>G: request
+  alt valid token
+    G->>DB: query
+    DB-->>G: rows
+  else expired
+    G--x C: 401
+  end
+  opt cache hit
+    G-->>C: cached
+  end

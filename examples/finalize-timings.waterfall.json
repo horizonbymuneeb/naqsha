@@ -1,0 +1,40 @@
+{
+  "title": "Finalize Run",
+  "subtitle": "measured on this box, one real workflow",
+  "type": "waterfall",
+  "nodes": [
+    {
+      "id": "validate",
+      "label": "Gate 1 · validate",
+      "start": 0,
+      "duration": 907
+    },
+    {
+      "id": "deliver",
+      "label": "Gate 2 · deliver",
+      "start": 907,
+      "duration": 872
+    },
+    {
+      "id": "check",
+      "label": "Gate 3 · check",
+      "start": 1779,
+      "duration": 256
+    },
+    {
+      "id": "browser",
+      "label": "Gate 4 · browser-check",
+      "start": 2035,
+      "duration": 9703
+    },
+    {
+      "id": "receipt",
+      "label": "receipt + atomic write",
+      "start": 11738,
+      "duration": 750
+    }
+  ],
+  "notes": [
+    "Numbers are wall-clock milliseconds from a real finalize run; artifact size is reported separately."
+  ]
+}

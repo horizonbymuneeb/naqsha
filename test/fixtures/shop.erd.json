@@ -1,0 +1,129 @@
+{
+  "title": "Shop Schema",
+  "subtitle": "four tables, one money path",
+  "type": "erd",
+  "nodes": [
+    {
+      "id": "customers",
+      "label": "customers",
+      "kind": "datastore",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "email",
+          "type": "citext",
+          "key": "unique"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "label": "orders",
+      "kind": "datastore",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "customer_id",
+          "type": "uuid",
+          "key": "fk",
+          "ref": "customers.id"
+        },
+        {
+          "name": "status",
+          "type": "order_status"
+        },
+        {
+          "name": "total_cents",
+          "type": "int4"
+        },
+        {
+          "name": "placed_at",
+          "type": "timestamptz"
+        }
+      ]
+    },
+    {
+      "id": "order-items",
+      "label": "order_items",
+      "kind": "datastore",
+      "attributes": [
+        {
+          "name": "order_id",
+          "type": "uuid",
+          "key": "fk",
+          "ref": "orders.id"
+        },
+        {
+          "name": "product_id",
+          "type": "uuid",
+          "key": "fk",
+          "ref": "products.id"
+        },
+        {
+          "name": "qty",
+          "type": "int2"
+        },
+        {
+          "name": "unit_cents",
+          "type": "int4"
+        }
+      ]
+    },
+    {
+      "id": "products",
+      "label": "products",
+      "kind": "datastore",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "key": "pk"
+        },
+        {
+          "name": "sku",
+          "type": "text",
+          "key": "unique"
+        },
+        {
+          "name": "price_cents",
+          "type": "int4"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "customers",
+      "to": "orders",
+      "label": "places",
+      "cardinality": "1:n"
+    },
+    {
+      "from": "orders",
+      "to": "order-items",
+      "label": "contains",
+      "cardinality": "1:n"
+    },
+    {
+      "from": "products",
+      "to": "order-items",
+      "label": "appears in",
+      "cardinality": "1:n"
+    }
+  ],
+  "notes": [
+    "Money lives in integer cents; no floats anywhere in the money path."
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "title": "Generate a Diagram",
+  "subtitle": "agent → SKILL.md → CLI → artifact, measured on this box",
+  "type": "sequence",
+  "nodes": [
+    {
+      "id": "agent",
+      "label": "Agent",
+      "sublabel": "reads the skill",
+      "kind": "actor"
+    },
+    {
+      "id": "skill",
+      "label": "SKILL.md",
+      "sublabel": "authoring contract",
+      "kind": "service"
+    },
+    {
+      "id": "cli",
+      "label": "engine CLI",
+      "sublabel": "bin/cli.mjs",
+      "kind": "service"
+    },
+    {
+      "id": "validator",
+      "label": "Validators",
+      "sublabel": "schema + rules",
+      "kind": "compute"
+    },
+    {
+      "id": "renderer",
+      "label": "Renderer",
+      "sublabel": "layout + template",
+      "kind": "service"
+    },
+    {
+      "id": "browser",
+      "label": "Browser Check",
+      "sublabel": "headless Chrome",
+      "kind": "compute"
+    },
+    {
+      "id": "artifact",
+      "label": "Standalone HTML",
+      "sublabel": "one file",
+      "kind": "datastore"
+    }
+  ],
+  "edges": [
+    {
+      "from": "agent",
+      "to": "skill",
+      "label": "read contract",
+      "kind": "main"
+    },
+    {
+      "from": "agent",
+      "to": "cli",
+      "label": "write candidate + run",
+      "kind": "main"
+    },
+    {
+      "from": "cli",
+      "to": "validator",
+      "label": "validate",
+      "kind": "main"
+    },
+    {
+      "from": "validator",
+      "to": "cli",
+      "label": "diagnostics with fixes",
+      "kind": "return"
+    },
+    {
+      "from": "cli",
+      "to": "renderer",
+      "label": "layout + compose",
+      "kind": "main"
+    },
+    {
+      "from": "renderer",
+      "to": "cli",
+      "label": "HTML",
+      "kind": "return"
+    },
+    {
+      "from": "cli",
+      "to": "browser",
+      "label": "gate 4",
+      "kind": "security"
+    },
+    {
+      "from": "browser",
+      "to": "cli",
+      "label": "pass / fail",
+      "kind": "return"
+    },
+    {
+      "from": "cli",
+      "to": "artifact",
+      "label": "atomic write",
+      "kind": "data"
+    }
+  ],
+  "notes": [
+    "Measured on this box: validate 0.9 s, deliver 0.9 s, check 0.3 s, browser-check 9.7 s, finalize 10.5 s total.",
+    "A failing gate never replaces the last good artifact."
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "title": "Monorepo Layout",
+  "subtitle": "where a change lands",
+  "type": "tree",
+  "nodes": [
+    {
+      "id": "repo",
+      "label": "naqsha repo"
+    },
+    {
+      "id": "src",
+      "label": "src"
+    },
+    {
+      "id": "layout",
+      "label": "layout"
+    },
+    {
+      "id": "view",
+      "label": "view"
+    },
+    {
+      "id": "cli",
+      "label": "cli"
+    },
+    {
+      "id": "tests",
+      "label": "test"
+    },
+    {
+      "id": "docs",
+      "label": "docs"
+    }
+  ],
+  "edges": [
+    {
+      "from": "repo",
+      "to": "src"
+    },
+    {
+      "from": "repo",
+      "to": "tests"
+    },
+    {
+      "from": "repo",
+      "to": "docs"
+    },
+    {
+      "from": "src",
+      "to": "layout"
+    },
+    {
+      "from": "src",
+      "to": "view"
+    },
+    {
+      "from": "src",
+      "to": "cli"
+    }
+  ]
+}

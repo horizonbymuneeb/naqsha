@@ -1,0 +1,159 @@
+{
+  "title": "Diagram IR",
+  "subtitle": "the typed JSON a candidate actually is",
+  "type": "erd",
+  "nodes": [
+    {
+      "id": "diagram",
+      "label": "diagram",
+      "attributes": [
+        {
+          "name": "schema_version",
+          "type": "int4",
+          "key": "pk"
+        },
+        {
+          "name": "diagram_type",
+          "type": "text",
+          "key": null
+        },
+        {
+          "name": "meta",
+          "type": "jsonb"
+        },
+        {
+          "name": "layout",
+          "type": "jsonb"
+        }
+      ]
+    },
+    {
+      "id": "component",
+      "label": "component",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "text",
+          "key": "pk"
+        },
+        {
+          "name": "type",
+          "type": "component_type"
+        },
+        {
+          "name": "label",
+          "type": "text"
+        },
+        {
+          "name": "sublabel",
+          "type": "text"
+        },
+        {
+          "name": "tag",
+          "type": "text"
+        },
+        {
+          "name": "row",
+          "type": "int4"
+        }
+      ]
+    },
+    {
+      "id": "boundary",
+      "label": "boundary",
+      "attributes": [
+        {
+          "name": "kind",
+          "type": "boundary_kind",
+          "key": null
+        },
+        {
+          "name": "label",
+          "type": "text"
+        },
+        {
+          "name": "wraps",
+          "type": "text[]"
+        }
+      ]
+    },
+    {
+      "id": "connection",
+      "label": "connection",
+      "attributes": [
+        {
+          "name": "id",
+          "type": "text",
+          "key": "pk"
+        },
+        {
+          "name": "from",
+          "type": "text",
+          "key": "fk",
+          "ref": "component.id"
+        },
+        {
+          "name": "to",
+          "type": "text",
+          "key": "fk",
+          "ref": "component.id"
+        },
+        {
+          "name": "label",
+          "type": "text"
+        },
+        {
+          "name": "variant",
+          "type": "variant"
+        }
+      ]
+    },
+    {
+      "id": "source",
+      "label": "source_ref",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "text",
+          "key": "pk"
+        },
+        {
+          "name": "commit",
+          "type": "text"
+        },
+        {
+          "name": "lines",
+          "type": "int4range"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "diagram",
+      "to": "component",
+      "label": "same document",
+      "cardinality": "1:n"
+    },
+    {
+      "from": "diagram",
+      "to": "boundary",
+      "cardinality": "1:n"
+    },
+    {
+      "from": "component",
+      "to": "connection",
+      "label": "connects",
+      "cardinality": "1:n"
+    },
+    {
+      "from": "component",
+      "to": "source",
+      "label": "cites",
+      "cardinality": "1:n"
+    }
+  ],
+  "notes": [
+    "Field names come from the published JSON schemas, not from a real database."
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "title": "Repository Layout",
+  "subtitle": "v3.2.0 release tree",
+  "type": "tree",
+  "nodes": [
+    {
+      "id": "repo",
+      "label": "diagram engine repo"
+    },
+    {
+      "id": "engine",
+      "label": "engine/"
+    },
+    {
+      "id": "bin",
+      "label": "bin/"
+    },
+    {
+      "id": "renderers",
+      "label": "renderers/"
+    },
+    {
+      "id": "schemas",
+      "label": "schemas/"
+    },
+    {
+      "id": "assets",
+      "label": "assets/"
+    },
+    {
+      "id": "explainer",
+      "label": "explainer/"
+    },
+    {
+      "id": "examples",
+      "label": "examples/"
+    },
+    {
+      "id": "scripts",
+      "label": "scripts/"
+    },
+    {
+      "id": "docs",
+      "label": "docs/"
+    },
+    {
+      "id": "integrations",
+      "label": "integrations/"
+    }
+  ],
+  "edges": [
+    {
+      "from": "repo",
+      "to": "engine"
+    },
+    {
+      "from": "repo",
+      "to": "scripts"
+    },
+    {
+      "from": "repo",
+      "to": "docs"
+    },
+    {
+      "from": "repo",
+      "to": "integrations"
+    },
+    {
+      "from": "engine",
+      "to": "bin"
+    },
+    {
+      "from": "engine",
+      "to": "renderers"
+    },
+    {
+      "from": "engine",
+      "to": "schemas"
+    },
+    {
+      "from": "engine",
+      "to": "assets"
+    },
+    {
+      "from": "engine",
+      "to": "explainer"
+    },
+    {
+      "from": "engine",
+      "to": "examples"
+    }
+  ]
+}

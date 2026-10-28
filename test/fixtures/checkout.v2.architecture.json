@@ -1,0 +1,234 @@
+{
+  "title": "Checkout Service Map",
+  "subtitle": "production topology · after the search and fraud release",
+  "type": "architecture",
+  "direction": "TB",
+  "groups": [
+    {
+      "id": "edge",
+      "label": "Edge",
+      "kind": "zone",
+      "nodes": [
+        "gateway"
+      ]
+    },
+    {
+      "id": "core",
+      "label": "Application Core",
+      "kind": "boundary",
+      "nodes": [
+        "checkout",
+        "pricing",
+        "inventory",
+        "search"
+      ]
+    },
+    {
+      "id": "data",
+      "label": "Data Plane",
+      "kind": "zone",
+      "nodes": [
+        "redis",
+        "orders-db",
+        "ledger-db"
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "browser",
+      "label": "Browser",
+      "sublabel": "storefront SPA",
+      "kind": "actor"
+    },
+    {
+      "id": "gateway",
+      "label": "Edge Gateway",
+      "sublabel": "auth, rate limit, WAF",
+      "kind": "security",
+      "group": "edge"
+    },
+    {
+      "id": "checkout",
+      "label": "Checkout",
+      "sublabel": "3 replicas, 512 MB",
+      "kind": "service",
+      "group": "core"
+    },
+    {
+      "id": "pricing",
+      "label": "Pricing",
+      "sublabel": "tax + discount rules",
+      "kind": "service",
+      "group": "core"
+    },
+    {
+      "id": "inventory",
+      "label": "Inventory",
+      "sublabel": "reserve + release, 15 min hold",
+      "kind": "service",
+      "group": "core"
+    },
+    {
+      "id": "queue",
+      "label": "Order Queue",
+      "sublabel": "at-least-once",
+      "kind": "queue"
+    },
+    {
+      "id": "worker",
+      "label": "Fulfilment Worker",
+      "sublabel": "batch 50",
+      "kind": "compute"
+    },
+    {
+      "id": "redis",
+      "label": "Redis",
+      "sublabel": "cart + sessions",
+      "kind": "datastore",
+      "group": "data"
+    },
+    {
+      "id": "orders-db",
+      "label": "Orders DB",
+      "sublabel": "PostgreSQL 17",
+      "kind": "datastore",
+      "group": "data"
+    },
+    {
+      "id": "ledger-db",
+      "label": "Ledger",
+      "sublabel": "append-only",
+      "kind": "datastore",
+      "group": "data"
+    },
+    {
+      "id": "trace",
+      "label": "Trace Sink",
+      "sublabel": "OTLP collector",
+      "kind": "external"
+    },
+    {
+      "id": "search",
+      "label": "Search",
+      "sublabel": "catalog index, 200 ms p99",
+      "kind": "service",
+      "group": "core"
+    },
+    {
+      "id": "fraud",
+      "label": "Fraud Check",
+      "sublabel": "rules + velocity",
+      "kind": "security"
+    }
+  ],
+  "edges": [
+    {
+      "from": "browser",
+      "to": "gateway",
+      "label": "POST /checkout",
+      "kind": "main"
+    },
+    {
+      "from": "gateway",
+      "to": "checkout",
+      "label": "JWT verified",
+      "kind": "security"
+    },
+    {
+      "from": "checkout",
+      "to": "pricing",
+      "label": "quote",
+      "kind": "main"
+    },
+    {
+      "from": "checkout",
+      "to": "inventory",
+      "label": "reserve",
+      "kind": "main"
+    },
+    {
+      "from": "pricing",
+      "to": "redis",
+      "label": "read rules",
+      "kind": "data"
+    },
+    {
+      "from": "inventory",
+      "to": "orders-db",
+      "label": "stock rows",
+      "kind": "data"
+    },
+    {
+      "from": "checkout",
+      "to": "orders-db",
+      "label": "insert order",
+      "kind": "data"
+    },
+    {
+      "from": "checkout",
+      "to": "queue",
+      "label": "enqueue",
+      "kind": "async"
+    },
+    {
+      "from": "queue",
+      "to": "worker",
+      "label": "consume",
+      "kind": "async"
+    },
+    {
+      "from": "worker",
+      "to": "ledger-db",
+      "label": "post entries",
+      "kind": "data"
+    },
+    {
+      "from": "worker",
+      "to": "orders-db",
+      "label": "mark paid",
+      "kind": "main"
+    },
+    {
+      "from": "queue",
+      "to": "trace",
+      "label": "span events",
+      "kind": "async"
+    },
+    {
+      "from": "checkout",
+      "to": "trace",
+      "label": "trace id",
+      "kind": "async"
+    },
+    {
+      "from": "checkout",
+      "to": "fraud",
+      "label": "score",
+      "kind": "security"
+    },
+    {
+      "from": "fraud",
+      "to": "orders-db",
+      "label": "decision",
+      "kind": "data"
+    },
+    {
+      "from": "search",
+      "to": "redis",
+      "label": "cached hits",
+      "kind": "data"
+    },
+    {
+      "from": "browser",
+      "to": "search",
+      "label": "GET /search",
+      "kind": "main"
+    }
+  ],
+  "notes": [
+    "Cache-miss path is the slow path; pricing rules are cached for 60s.",
+    "Fulfilment is idempotent on order id, so queue retries are free.",
+    "Ledger is append-only: corrections are new entries, never updates."
+  ]
+}

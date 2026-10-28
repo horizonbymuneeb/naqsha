@@ -1,0 +1,72 @@
+{
+  "title": "Order Lifecycle",
+  "subtitle": "states, events and the unhappy path",
+  "type": "lifecycle",
+  "nodes": [
+    {
+      "id": "draft",
+      "label": "Draft"
+    },
+    {
+      "id": "reserved",
+      "label": "Stock reserved"
+    },
+    {
+      "id": "paid",
+      "label": "Paid"
+    },
+    {
+      "id": "fulfilling",
+      "label": "Fulfilling"
+    },
+    {
+      "id": "shipped",
+      "label": "Shipped"
+    },
+    {
+      "id": "refunded",
+      "label": "Refunded"
+    },
+    {
+      "id": "cancelled",
+      "label": "Cancelled"
+    }
+  ],
+  "edges": [
+    {
+      "from": "draft",
+      "to": "reserved",
+      "label": "reserve"
+    },
+    {
+      "from": "reserved",
+      "to": "paid",
+      "label": "pay"
+    },
+    {
+      "from": "reserved",
+      "to": "cancelled",
+      "label": "timeout"
+    },
+    {
+      "from": "paid",
+      "to": "fulfilling",
+      "label": "allocate"
+    },
+    {
+      "from": "fulfilling",
+      "to": "shipped",
+      "label": "hand over"
+    },
+    {
+      "from": "paid",
+      "to": "refunded",
+      "label": "refund"
+    },
+    {
+      "from": "shipped",
+      "to": "refunded",
+      "label": "return"
+    }
+  ]
+}

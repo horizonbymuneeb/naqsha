@@ -1,0 +1,114 @@
+{
+  "title": "Engine Modules",
+  "subtitle": "who calls whom inside the engine",
+  "type": "class",
+  "nodes": [
+    {
+      "id": "renderer",
+      "label": "Renderer",
+      "stereotype": "interface",
+      "members": [
+        "+ render(ir): string",
+        "+ mode: string"
+      ]
+    },
+    {
+      "id": "native",
+      "label": "NativeRenderer",
+      "members": [
+        "+ render(ir): string",
+        "- layout: LayoutPlan",
+        "- template: string"
+      ]
+    },
+    {
+      "id": "explainer",
+      "label": "ExplainerRenderer",
+      "members": [
+        "+ render(ir): string",
+        "- panels: Panel[]",
+        "- charts: ChartSpec[]"
+      ]
+    },
+    {
+      "id": "validator",
+      "label": "Validator",
+      "stereotype": "interface",
+      "members": [
+        "+ validate(ir): Diagnostic[]"
+      ]
+    },
+    {
+      "id": "layout",
+      "label": "LayoutPlanner",
+      "members": [
+        "+ plan(ir): LayoutPlan",
+        "- routes: Route[]"
+      ]
+    },
+    {
+      "id": "deliverer",
+      "label": "Deliverer",
+      "members": [
+        "+ deliver(html, out): Artifact",
+        "- atomic: AtomicOutput"
+      ]
+    },
+    {
+      "id": "gate",
+      "label": "BrowserGate",
+      "members": [
+        "+ check(artifact): GateReport",
+        "- chrome: ChromeSession"
+      ]
+    },
+    {
+      "id": "skill",
+      "label": "SkillContract",
+      "members": [
+        "+ version: string",
+        "+ paths: string[]"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "native",
+      "to": "renderer",
+      "kind": "implements"
+    },
+    {
+      "from": "explainer",
+      "to": "renderer",
+      "kind": "implements"
+    },
+    {
+      "from": "renderer",
+      "to": "layout",
+      "kind": "association",
+      "label": "geometry"
+    },
+    {
+      "from": "renderer",
+      "to": "validator",
+      "kind": "dependency",
+      "label": "rules"
+    },
+    {
+      "from": "deliverer",
+      "to": "gate",
+      "kind": "association"
+    },
+    {
+      "from": "deliverer",
+      "to": "renderer",
+      "kind": "composition"
+    },
+    {
+      "from": "skill",
+      "to": "renderer",
+      "kind": "dependency",
+      "label": "modes"
+    }
+  ]
+}

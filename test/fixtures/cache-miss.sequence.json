@@ -1,0 +1,30 @@
+{
+  "title": "Cache Miss Request",
+  "subtitle": "dashboard load, cold cache, P99 612 ms",
+  "type": "sequence",
+  "nodes": [
+    { "id": "user", "label": "User", "sublabel": "browser", "kind": "actor" },
+    { "id": "web", "label": "Web App", "sublabel": "React 19", "kind": "service" },
+    { "id": "api", "label": "API", "sublabel": "request handler", "kind": "service" },
+    { "id": "redis", "label": "Redis", "sublabel": "cache", "kind": "datastore" },
+    { "id": "db", "label": "Postgres", "sublabel": "source of truth", "kind": "datastore" }
+  ],
+  "groups": [
+    { "id": "fallback", "label": "fallback", "kind": "fragment", "nodes": ["api", "redis", "db"] }
+  ],
+  "edges": [
+    { "from": "user", "to": "web", "label": "open dashboard", "kind": "main" },
+    { "from": "web", "to": "api", "label": "GET /dashboard", "kind": "main" },
+    { "from": "api", "to": "redis", "label": "read cache", "kind": "main" },
+    { "from": "redis", "to": "api", "label": "miss", "kind": "return" },
+    { "from": "api", "to": "db", "label": "query profile + metrics", "kind": "data" },
+    { "from": "db", "to": "api", "label": "rows", "kind": "return" },
+    { "from": "api", "to": "redis", "label": "set cache, 60 s", "kind": "async" },
+    { "from": "api", "to": "web", "label": "200 JSON", "kind": "return" },
+    { "from": "web", "to": "user", "label": "render", "kind": "return" }
+  ],
+  "notes": [
+    "Cache miss is the primary path to Postgres; warm hits never reach the database.",
+    "Cache fill is asynchronous relative to the response: it does not block render."
+  ]
+}

@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>naqsha — free diagram skill for coding agents</title>
+<meta name="description" content="Ten diagram types from one small JSON file: a self-contained interactive HTML page, offline, no dependencies.">
+<style>
+  :root {
+    --bg: #fbfaf7;
+    --surface: #ffffff;
+    --ink: #1a1a17;
+    --muted: #6c6a63;
+    --line: #e4e1da;
+    --accent: #b4661f;
+    --teal: #1d6a62;
+    --radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141412;
+      --surface: #1c1c19;
+      --ink: #f4f2ec;
+      --muted: #a3a09a;
+      --line: #2e2e29;
+      --accent: #d98a3f;
+      --teal: #5fb3a7;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 56px 24px 72px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 28px; margin-bottom: 36px; }
+  .eyebrow {
+    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+  }
+  h1 { font-size: clamp(30px, 5vw, 44px); line-height: 1.1; letter-spacing: -0.02em; margin: 14px 0 12px; font-weight: 650; }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0; font-size: 17px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: 22px; font-size: 13px; color: var(--muted); }
+  .meta a { color: var(--teal); text-decoration: none; border-bottom: 1px solid currentColor; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 40px 0 14px; }
+  ul { list-style: none; margin: 0; padding: 0; }
+  li { border-top: 1px solid var(--line); }
+  li:last-child { border-bottom: 1px solid var(--line); }
+  a.demo {
+    display: grid; grid-template-columns: 150px 1fr; gap: 4px 18px;
+    padding: 14px 2px; text-decoration: none; color: inherit;
+  }
+  a.demo:hover .name, a.demo:focus-visible .name { color: var(--accent); }
+  .name { font-weight: 600; font-size: 15px; }
+  .what { color: var(--muted); font-size: 14px; }
+  .type {
+    grid-row: span 2; align-self: start; justify-self: start;
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 8px; margin-top: 2px;
+  }
+  .diff .type { color: var(--accent); border-color: currentColor; }
+  footer { margin-top: 48px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+  @media (max-width: 560px) {
+    .wrap { padding: 36px 18px 56px; }
+    a.demo { grid-template-columns: 1fr; }
+    .type { grid-row: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">naqsha · v1.2.1 · MIT</div>
+    <h1>One JSON file in. One interactive page out.</h1>
+    <p class="lede">A free diagram skill for coding agents: ten diagram types, ten native
+      layouts, and a self-contained HTML artifact with tours, search, route tracing,
+      diffs and export — no network, no fonts, no hosted service.</p>
+    <div class="meta">
+      <span><a href="https://github.com/horizonbymuneeb/naqsha">Repository</a></span>
+      <span><a href="https://github.com/horizonbymuneeb/naqsha/releases">Releases</a></span>
+      <span><a href="https://github.com/horizonbymuneeb/naqsha#readme">Install</a></span>
+      <span>Every diagram below describes one real, shipping diagram engine</span>
+    </div>
+  </header>
+
+  <h2>Start here</h2>
+  <ul>
+    <li><a class="demo" href="demo-architecture.html">
+      <span class="type">tour</span>
+      <span class="name">Engine v3.2 architecture</span>
+      <span class="what">Engine, delivery gates and integrations, with a 4-step guided walkthrough — press <code>→</code> or Space.</span></a></li>
+    <li><a class="demo diff" href="demo-diff.html">
+      <span class="type">diff</span>
+      <span class="name">v3.1 → v3.2 diff</span>
+      <span class="what">Added nodes ringed green, changed labels marked, change counts in the header.</span></a></li>
+    <li><a class="demo" href="demo-generate.sequence.html">
+      <span class="type">sequence</span>
+      <span class="name">A generate run</span>
+      <span class="what">Agent → SKILL.md → CLI → validators → renderer → browser gate → artifact.</span></a></li>
+    <li><a class="demo" href="demo-finalize.workflow.html">
+      <span class="type">workflow</span>
+      <span class="name">Finalize gates</span>
+      <span class="what">Four gates, a bounded repair loop and every failure path.</span></a></li>
+  </ul>
+
+  <h2>One page per diagram type</h2>
+  <ul>
+    <li><a class="demo" href="demo-ir.erd.html">
+      <span class="type">erd</span>
+      <span class="name">Diagram IR</span>
+      <span class="what">The typed JSON a candidate actually is: entities, columns, keys, cardinality.</span></a></li>
+    <li><a class="demo" href="demo-modules.class.html">
+      <span class="type">class</span>
+      <span class="name">Engine modules</span>
+      <span class="what">Interfaces, implementers, dependencies and composition inside the engine.</span></a></li>
+    <li><a class="demo" href="demo-tree.tree.html">
+      <span class="type">tree</span>
+      <span class="name">Repository layout</span>
+      <span class="what">The directory hierarchy at v3.2.0, one parent per node.</span></a></li>
+    <li><a class="demo" href="demo-release.timeline.html">
+      <span class="type">timeline</span>
+      <span class="name">Release history</span>
+      <span class="what">Dated events on a time axis, across skill, adapter and license lanes.</span></a></li>
+    <li><a class="demo" href="demo-finalize.waterfall.html">
+      <span class="type">waterfall</span>
+      <span class="name">Finalize run</span>
+      <span class="what">Measured wall-clock spans for each gate on this machine.</span></a></li>
+    <li><a class="demo" href="demo-evidence.dataflow.html">
+      <span class="type">dataflow</span>
+      <span class="name">Repository evidence</span>
+      <span class="what">From source files to source-backed nodes, stage by stage.</span></a></li>
+    <li><a class="demo" href="demo-artifact.lifecycle.html">
+      <span class="type">lifecycle</span>
+      <span class="name">Artifact lifecycle</span>
+      <span class="what">Candidate → gated → published, or the last good file kept.</span></a></li>
+    <li><a class="demo" href="demo-mermaid.html">
+      <span class="type">mermaid</span>
+      <span class="name">Ingested Mermaid</span>
+      <span class="what">A <code>sequenceDiagram</code> converted to IR and re-rendered.</span></a></li>
+  </ul>
+
+  <footer>
+    Every page is a single self-contained HTML file — no CDN, no fonts, no telemetry.
+    Use <code>/</code> to search, <code>r</code> to trace a route, <code>p</code> for the
+    presentation laser, <code>?</code> for all bindings.
+  </footer>
+</div>
+</body>
+</html>

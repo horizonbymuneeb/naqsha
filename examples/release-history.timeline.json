@@ -1,0 +1,55 @@
+{
+  "title": "Engine Release History",
+  "subtitle": "ten types, explainer mode, and the license switch",
+  "type": "timeline",
+  "nodes": [
+    {
+      "id": "v215",
+      "label": "2.4 — earlier modes",
+      "at": "2025-01-20",
+      "lane": "skill"
+    },
+    {
+      "id": "v216",
+      "label": "2.6 — ten types complete",
+      "at": "2025-02-10",
+      "lane": "skill"
+    },
+    {
+      "id": "v300",
+      "label": "3.0.0 — stable rewrite",
+      "at": "2025-03-05",
+      "lane": "skill"
+    },
+    {
+      "id": "v301",
+      "label": "3.0.1 — install fix",
+      "at": "2025-03-05",
+      "lane": "skill"
+    },
+    {
+      "id": "v310",
+      "label": "3.1.0 — typed JSON IR",
+      "at": "2025-04-02",
+      "lane": "skill"
+    },
+    {
+      "id": "v320",
+      "label": "3.2.0 — explainer pages",
+      "at": "2025-04-16",
+      "lane": "skill"
+    },
+    {
+      "id": "dsh",
+      "label": "Host adapter 1.0.0",
+      "at": "2025-04-18",
+      "lane": "adapter"
+    },
+    {
+      "id": "license",
+      "label": "Apache-2.0 license switch",
+      "at": "2025-04-20",
+      "lane": "license"
+    }
+  ]
+}

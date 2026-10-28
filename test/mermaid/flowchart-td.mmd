@@ -1,0 +1,9 @@
+%% checkout path, top-down
+flowchart TD
+  A[Browser] --> B[API Gateway]
+  B --> C{Authenticated?}
+  C -->|yes| D[Checkout Service]
+  C -->|no| E[Login Page]
+  D --> F[(Orders DB)]
+  D --> G((Done))
+  E --> B

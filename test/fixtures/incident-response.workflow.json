@@ -1,0 +1,126 @@
+{
+  "title": "Incident Response",
+  "subtitle": "paging, triage, mitigation and review",
+  "type": "workflow",
+  "direction": "LR",
+  "nodes": [
+    {
+      "id": "alert",
+      "label": "Alert Fires",
+      "sublabel": "P99 > 600 ms, 5 min",
+      "kind": "state"
+    },
+    {
+      "id": "page",
+      "label": "Page On-call",
+      "sublabel": "PagerDuty, 5 min ack",
+      "kind": "service"
+    },
+    {
+      "id": "triage",
+      "label": "Triage",
+      "sublabel": "scope + severity",
+      "kind": "service"
+    },
+    {
+      "id": "known",
+      "label": "Known Cause?",
+      "kind": "state"
+    },
+    {
+      "id": "runbook",
+      "label": "Runbook Path",
+      "sublabel": "cached mitigation",
+      "kind": "service"
+    },
+    {
+      "id": "deep",
+      "label": "Deep Debug",
+      "sublabel": "traces + recent deploys",
+      "kind": "compute"
+    },
+    {
+      "id": "mitigate",
+      "label": "Mitigate",
+      "sublabel": "rollback or shed load",
+      "kind": "security"
+    },
+    {
+      "id": "verify",
+      "label": "Verify Recovery",
+      "sublabel": "SLO burn stops",
+      "kind": "state"
+    },
+    {
+      "id": "review",
+      "label": "Post-incident Review",
+      "sublabel": "within 48 h",
+      "kind": "note"
+    }
+  ],
+  "edges": [
+    {
+      "from": "alert",
+      "to": "page",
+      "label": "route",
+      "kind": "main"
+    },
+    {
+      "from": "page",
+      "to": "triage",
+      "label": "ack",
+      "kind": "main"
+    },
+    {
+      "from": "triage",
+      "to": "known",
+      "label": "assess",
+      "kind": "main"
+    },
+    {
+      "from": "known",
+      "to": "runbook",
+      "label": "yes",
+      "kind": "main"
+    },
+    {
+      "from": "known",
+      "to": "deep",
+      "label": "no",
+      "kind": "return"
+    },
+    {
+      "from": "runbook",
+      "to": "mitigate",
+      "label": "apply",
+      "kind": "main"
+    },
+    {
+      "from": "deep",
+      "to": "mitigate",
+      "label": "fix found",
+      "kind": "main"
+    },
+    {
+      "from": "mitigate",
+      "to": "verify",
+      "label": "check",
+      "kind": "main"
+    },
+    {
+      "from": "verify",
+      "to": "triage",
+      "label": "not recovered",
+      "kind": "return"
+    },
+    {
+      "from": "verify",
+      "to": "review",
+      "label": "recovered",
+      "kind": "main"
+    }
+  ],
+  "notes": [
+    "Verify loops back to triage until the SLO burn rate returns to normal."
+  ]
+}

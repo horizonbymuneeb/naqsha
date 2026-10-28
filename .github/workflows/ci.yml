@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: unit tests
+        run: npm test
+      - name: validate every example IR
+        run: |
+          find examples -name '*.json' -print0 | while IFS= read -r -d '' f; do
+            echo "validate $f"
+            node src/cli/naqsha.mjs validate "$f" --json > /dev/null
+          done
+      - name: every diagram type renders to a self-contained file
+        run: |
+          find examples -name '*.json' -print0 | while IFS= read -r -d '' f; do
+            out="/tmp/$(basename "$f" .json).html"
+            node src/cli/naqsha.mjs render "$f" "$out" --json > /dev/null
+            test -s "$out"
+            if grep -qE '(src|href)="https?://' "$out"; then echo "external refs in $f"; exit 1; fi
+          done
+      - name: mermaid round-trip
+        run: |
+          node src/cli/naqsha.mjs mermaid examples/engine-repo.architecture.json /tmp/a.mmd --json > /dev/null
+          node src/cli/naqsha.mjs convert /tmp/a.mmd /tmp/a.json --json > /dev/null
+          node src/cli/naqsha.mjs validate /tmp/a.json --json > /dev/null
+      - name: npm tarball is well formed
+        run: npm pack --dry-run

@@ -1,0 +1,132 @@
+{
+  "title": "Finalize Gates",
+  "subtitle": "four gates and a bounded repair loop",
+  "type": "workflow",
+  "direction": "TB",
+  "nodes": [
+    {
+      "id": "candidate",
+      "label": "Candidate JSON",
+      "sublabel": "authored by the agent",
+      "kind": "state"
+    },
+    {
+      "id": "validate",
+      "label": "Gate 1 · Validate",
+      "sublabel": "schemas + cross-field rules",
+      "kind": "security"
+    },
+    {
+      "id": "valid",
+      "label": "Valid?",
+      "kind": "state"
+    },
+    {
+      "id": "repair",
+      "label": "Repair",
+      "sublabel": "≤ 2 correction rounds",
+      "kind": "service"
+    },
+    {
+      "id": "deliver",
+      "label": "Gate 2 · Deliver",
+      "sublabel": "compose + atomic write",
+      "kind": "security"
+    },
+    {
+      "id": "check",
+      "label": "Gate 3 · Check",
+      "sublabel": "artifact contract",
+      "kind": "security"
+    },
+    {
+      "id": "browser",
+      "label": "Gate 4 · Browser",
+      "sublabel": "real Chrome, CDP",
+      "kind": "security"
+    },
+    {
+      "id": "artifact",
+      "label": "Published Artifact",
+      "sublabel": "replaces the target",
+      "kind": "datastore"
+    },
+    {
+      "id": "lastgood",
+      "label": "Last Good File",
+      "sublabel": "kept on any failure",
+      "kind": "datastore"
+    }
+  ],
+  "edges": [
+    {
+      "from": "candidate",
+      "to": "validate",
+      "label": "run",
+      "kind": "main"
+    },
+    {
+      "from": "validate",
+      "to": "valid",
+      "label": "result",
+      "kind": "main"
+    },
+    {
+      "from": "valid",
+      "to": "repair",
+      "label": "no",
+      "kind": "return"
+    },
+    {
+      "from": "repair",
+      "to": "validate",
+      "label": "retry",
+      "kind": "return"
+    },
+    {
+      "from": "valid",
+      "to": "deliver",
+      "label": "yes",
+      "kind": "main"
+    },
+    {
+      "from": "deliver",
+      "to": "check",
+      "label": "artifact",
+      "kind": "main"
+    },
+    {
+      "from": "check",
+      "to": "browser",
+      "label": "pass",
+      "kind": "main"
+    },
+    {
+      "from": "browser",
+      "to": "artifact",
+      "label": "pass",
+      "kind": "main"
+    },
+    {
+      "from": "check",
+      "to": "lastgood",
+      "label": "fail",
+      "kind": "return"
+    },
+    {
+      "from": "browser",
+      "to": "lastgood",
+      "label": "fail",
+      "kind": "return"
+    },
+    {
+      "from": "lastgood",
+      "to": "candidate",
+      "label": "visible to the reader",
+      "kind": "return"
+    }
+  ],
+  "notes": [
+    "A non-zero exit is never success; every failure names the gate and the supported repair."
+  ]
+}

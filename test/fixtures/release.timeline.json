@@ -1,0 +1,43 @@
+{
+  "title": "Release History",
+  "subtitle": "what shipped, and when it hurt",
+  "type": "timeline",
+  "nodes": [
+    {
+      "id": "v010",
+      "label": "0.1.0 — first render",
+      "at": "2026-10-27",
+      "lane": "naqsha"
+    },
+    {
+      "id": "v100",
+      "label": "1.0 — tours + diff",
+      "at": "2026-10-27",
+      "lane": "naqsha"
+    },
+    {
+      "id": "v110",
+      "label": "1.1 — live viewer",
+      "at": "2026-10-28",
+      "lane": "naqsha"
+    },
+    {
+      "id": "inc1",
+      "label": "label truncation bug",
+      "at": "2026-10-27",
+      "lane": "incidents"
+    },
+    {
+      "id": "inctour",
+      "label": "share-link not written",
+      "at": "2026-10-28",
+      "lane": "incidents"
+    },
+    {
+      "id": "fixshare",
+      "label": "synchronous hash fix",
+      "at": "2026-10-28",
+      "lane": "incidents"
+    }
+  ]
+}

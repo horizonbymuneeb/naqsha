@@ -1,0 +1,10 @@
+flowchart TD
+  subgraph edge [Edge Layer]
+    cdn[CDN] --> gw[API Gateway]
+  end
+  subgraph core [Application Core]
+    gw --> api[Checkout API]
+    api --> pricing[Pricing]
+  end
+  browser[Browser] --> cdn
+  api --> orders[(Orders DB)]

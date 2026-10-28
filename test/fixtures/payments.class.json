@@ -1,0 +1,91 @@
+{
+  "title": "Payment Types",
+  "subtitle": "gateway abstraction and its implementations",
+  "type": "class",
+  "nodes": [
+    {
+      "id": "gateway",
+      "label": "PaymentGateway",
+      "stereotype": "interface",
+      "members": [
+        "+ charge(amount: Money): Receipt",
+        "+ refund(id: string): Refund"
+      ]
+    },
+    {
+      "id": "stripe",
+      "label": "StripeGateway",
+      "members": [
+        "- apiKey: string",
+        "+ charge(amount: Money): Receipt",
+        "+ refund(id: string): Refund"
+      ]
+    },
+    {
+      "id": "routing",
+      "label": "RoutingGateway",
+      "members": [
+        "- primary: PaymentGateway",
+        "+ charge(amount: Money): Receipt"
+      ]
+    },
+    {
+      "id": "receipt",
+      "label": "Receipt",
+      "members": [
+        "+ id: string",
+        "+ amount: Money",
+        "+ capturedAt: Date"
+      ]
+    },
+    {
+      "id": "refund",
+      "label": "Refund",
+      "members": [
+        "+ receiptId: string",
+        "+ amount: Money"
+      ]
+    },
+    {
+      "id": "money",
+      "label": "Money",
+      "members": [
+        "+ cents: int",
+        "+ currency: string"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "stripe",
+      "to": "gateway",
+      "kind": "implements"
+    },
+    {
+      "from": "routing",
+      "to": "gateway",
+      "kind": "composition"
+    },
+    {
+      "from": "gateway",
+      "to": "receipt",
+      "kind": "dependency",
+      "label": "returns"
+    },
+    {
+      "from": "gateway",
+      "to": "refund",
+      "kind": "dependency"
+    },
+    {
+      "from": "receipt",
+      "to": "money",
+      "kind": "composition"
+    },
+    {
+      "from": "refund",
+      "to": "money",
+      "kind": "composition"
+    }
+  ]
+}

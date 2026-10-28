@@ -1,0 +1,6 @@
+flowchart TD
+  A[Request] --> B{Valid?}
+  B -->|yes| C[Process]
+  B -->|no| D[Reject]
+  C --> E[(Audit Log)]
+  E --> F[Notify]
