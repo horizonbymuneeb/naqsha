@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.0
+
+### Added
+- `naqsha lint <in.json>` — structural review with codes (`lint/orphan-node`,
+  `lint/cycle`, `lint/duplicate-id`, `lint/dangling-edge`, `lint/unlabeled-node`,
+  `lint/label-is-id`, `lint/self-loop`, `lint/too-many-nodes`). `--strict` fails on
+  warnings; `--json` returns a receipt; `--max-nodes` tunes the readability ceiling.
+- `naqsha schema` — print (or `--out`) the IR JSON Schema, for editor autocomplete.
+- `naqsha serve <in.json>` — live preview: re-renders on save, reloads the browser,
+  shows validation errors inside the page. `--port`, `--host`, `--no-watch`.
+- `naqsha export <in.json> <out.svg|png>` — standalone SVG (CSS inlined, no network)
+  or PNG via headless Chrome, straight from the IR.
+- Viewer: **minimap toggle** (button and `m`), persisted per browser.
+- Viewer: **copy PNG to clipboard** in the export menu, with a download fallback.
+
+### Changed
+- `npm test` now runs `test/*.test.mjs` explicitly (the bare directory form skipped
+  the newest suite).
+
+
 ## 1.2.7
 
 - package.json: `author`, `publishConfig` with `provenance: true`

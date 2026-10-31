@@ -12,6 +12,10 @@
 //   naqsha convert  <in.mmd> <out.json> [--type] [--json]
 //   naqsha mermaid  <in.json> <out.mmd> [--json]
 //   naqsha fix      <in.json> [--write | --out <file>] [--json]
+//   naqsha lint     <in.json> [--max-nodes N] [--strict] [--json]
+//   naqsha schema   [--out <file>]
+//   naqsha serve    <in.json> [--port N] [--host H] [--no-watch] [--mode] [--json]
+//   naqsha export   <in.json> <out.svg|png> [--format svg|png] [--mode] [--width] [--height] [--json]
 //   naqsha version | --version       print the CLI version
 //
 // Zero dependencies, Node >= 18, ESM. Contract: src/CONTRACT.md §4.
@@ -19,6 +23,7 @@
 // (and 2 for "render pipeline not ready", i.e. layout/view modules missing).
 
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -33,6 +38,9 @@ const DIFF_MODULE = new URL("../diff/index.mjs", import.meta.url);
 const CONVERT_MODULE = new URL("../convert/mermaid.mjs", import.meta.url);
 const REPAIR_MODULE = new URL("../repair/index.mjs", import.meta.url);
 const TO_MERMAID_MODULE = new URL("../convert/to-mermaid.mjs", import.meta.url);
+const LINT_MODULE = new URL("../lint/index.mjs", import.meta.url);
+const EXPORT_MODULE = new URL("../export/index.mjs", import.meta.url);
+const SCHEMA_FILE = path.join(HERE, "..", "validate", "schema.json");
 
 const EXIT_OK = 0;
 const EXIT_FAIL = 1;
@@ -54,6 +62,10 @@ Usage:
   naqsha convert  <in.mmd> <out.json> [--type auto|workflow|architecture|sequence] [--json]
   naqsha mermaid  <in.json> <out.mmd> [--json]
   naqsha fix      <in.json> [--write | --out <file>] [--json]
+  naqsha lint     <in.json> [--max-nodes N] [--strict] [--json]
+  naqsha schema   [--out <file>]
+  naqsha serve    <in.json> [--port N] [--host H] [--no-watch] [--mode] [--json]
+  naqsha export   <in.json> <out.svg|png> [--format svg|png] [--mode] [--width] [--height] [--json]
   naqsha install-skill [--agent all|dsh|claude|codex|hermes|opencode|cursor|gemini]
                        [--prefix DIR] [--no-verify] [--list]
   naqsha version | --version       print the CLI version
@@ -275,6 +287,12 @@ const FLAG_SPECS = Object.freeze({
   prefix: { kind: "string" },
   "no-verify": { kind: "boolean" },
   list: { kind: "boolean" },
+  port: { kind: "int", min: 0, max: 65535 },
+  host: { kind: "string" },
+  "no-watch": { kind: "boolean" },
+  strict: { kind: "boolean" },
+  "max-nodes": { kind: "int", min: 1, max: 10000 },
+  format: { kind: "choice", values: ["svg", "png"] },
 });
 
 function parseCommandArgs(tokens, { allow, min, max }) {
@@ -779,7 +797,7 @@ async function cmdValidate(tokens) {
 // render pipeline (shared by render and demo)
 // ---------------------------------------------------------------------------
 
-async function renderPipeline({ input, output, mode }) {
+async function renderDocument({ input, mode }) {
   const loaded = readIrFile(input);
   if (!loaded.ok) return { ok: false, exitCode: EXIT_FAIL, errors: loaded.errors, warnings: [] };
 
@@ -847,12 +865,20 @@ async function renderPipeline({ input, output, mode }) {
     };
   }
 
+  return { ok: true, html, nodes: loaded.value.nodes || [], edges: loaded.value.edges || [], warnings: checked.warnings || [], scene };
+}
+
+/** Render to a file: renderDocument + the write/serialise half. */
+async function renderPipeline({ input, output, mode }) {
+  const rendered = await renderDocument({ input, mode });
+  if (!rendered.ok) return rendered;
+
   const outDirectory = path.dirname(output);
   if (!fs.existsSync(outDirectory) || !fs.statSync(outDirectory).isDirectory()) {
     return {
       ok: false,
       exitCode: EXIT_FAIL,
-      warnings: checked.warnings,
+      warnings: rendered.warnings || [],
       errors: [
         cliError(
           "cli/output-dir",
@@ -865,26 +891,24 @@ async function renderPipeline({ input, output, mode }) {
   }
 
   try {
-    atomicWrite(output, html);
+    atomicWrite(output, rendered.html);
   } catch (error) {
     return {
       ok: false,
       exitCode: EXIT_FAIL,
-      errors: [
-        cliError("cli/output-write", `cannot write ${output}: ${error.message}`, output, "check write permissions on the output directory"),
-      ],
-      warnings: checked.warnings,
+      warnings: rendered.warnings || [],
+      errors: [cliError("cli/output-write", `cannot write ${output}: ${error.message}`, output, "check write permissions on the output directory")],
     };
   }
 
   return {
     ok: true,
-    bytes: Buffer.byteLength(html),
-    nodes: Array.isArray(loaded.value.nodes) ? loaded.value.nodes.length : 0,
-    edges: Array.isArray(loaded.value.edges) ? loaded.value.edges.length : 0,
-    warnings: checked.warnings,
-    scene,
-    html,
+    bytes: Buffer.byteLength(rendered.html),
+    nodes: rendered.nodes.length,
+    edges: rendered.edges.length,
+    warnings: rendered.warnings || [],
+    scene: rendered.scene,
+    html: rendered.html,
   };
 }
 
@@ -1276,6 +1300,304 @@ async function cmdScreenshot(tokens) {
 // entry point
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// lint
+// ---------------------------------------------------------------------------
+
+async function cmdLint(tokens) {
+  const { positionals, flags } = parseCommandArgs(tokens, {
+    allow: ["json", "strict", "max-nodes"],
+    min: 1,
+    max: 1,
+  });
+  const input = path.resolve(positionals[0]);
+  const loaded = readIrFile(input);
+  if (!loaded.ok) {
+    if (flags.json) emitJson(failureReceipt(loaded.errors));
+    else {
+      printErrorList(loaded.errors);
+      process.stderr.write(`lint failed: ${loaded.errors.length} error(s)\n`);
+    }
+    return EXIT_FAIL;
+  }
+
+  const { lint } = await import(LINT_MODULE.href);
+  const report = lint(loaded.value, { maxNodes: flags["max-nodes"] });
+  const failOnWarnings = flags.strict === true;
+  const exitCode = !report.ok || (failOnWarnings && report.warnings.length > 0) ? EXIT_FAIL : EXIT_OK;
+
+  if (flags.json) {
+    emitJson({
+      ok: report.ok,
+      input,
+      stats: report.stats,
+      errors: report.errors,
+      warnings: report.warnings,
+      exit: exitCode,
+    });
+    return exitCode;
+  }
+
+  process.stdout.write(
+    `lint ${display(input)} — ${report.stats.nodes} nodes, ${report.stats.edges} edges, type ${report.stats.type}\n`,
+  );
+  for (const item of [...report.errors, ...report.warnings]) {
+    const mark = item.severity === "error" ? "error" : "warn ";
+    process.stdout.write(`  ${mark} ${item.code} at ${item.path}: ${item.message}\n`);
+    if (item.hint) process.stdout.write(`        hint: ${item.hint}\n`);
+  }
+  if (report.errors.length === 0 && report.warnings.length === 0) {
+    process.stdout.write("  clean — nothing to fix\n");
+  } else {
+    process.stdout.write(
+      `${report.errors.length} error(s), ${report.warnings.length} warning(s)${failOnWarnings ? " (--strict)" : ""}\n`,
+    );
+  }
+  return exitCode;
+}
+
+// ---------------------------------------------------------------------------
+// schema
+// ---------------------------------------------------------------------------
+
+function cmdSchema(tokens) {
+  const { flags } = parseCommandArgs(tokens, { allow: ["out"], min: 0, max: 0 });
+  let text;
+  try {
+    text = fs.readFileSync(SCHEMA_FILE, "utf8");
+  } catch (error) {
+    const failure = cliError("cli/schema-missing", `cannot read the bundled schema: ${error.message}`, SCHEMA_FILE, "reinstall naqsha-cli");
+    printErrorList([failure]);
+    return EXIT_FAIL;
+  }
+  if (flags.out) {
+    const output = path.resolve(flags.out);
+    try {
+      atomicWrite(output, text);
+    } catch (error) {
+      printErrorList([cliError("cli/output-write", `cannot write ${output}: ${error.message}`, output, "check write permissions")]);
+      return EXIT_FAIL;
+    }
+    process.stdout.write(`schema -> ${display(output)}\n`);
+    return EXIT_OK;
+  }
+  process.stdout.write(text.endsWith("\n") ? text : `${text}\n`);
+  return EXIT_OK;
+}
+
+// ---------------------------------------------------------------------------
+// serve
+// ---------------------------------------------------------------------------
+
+const RELOAD_SCRIPT = `<script>(function(){var seen=null;setInterval(function(){fetch("/__naqsha/rev",{cache:"no-store"}).then(function(r){return r.text()}).then(function(t){if(seen===null){seen=t}else if(seen!==t){location.reload()}}).catch(function(){})},800)})();</script>`;
+
+function injectReload(html) {
+  if (html.includes("</body>")) return html.replace("</body>", `${RELOAD_SCRIPT}</body>`);
+  return html + RELOAD_SCRIPT;
+}
+
+function errorDocument(errors) {
+  const items = errors
+    .map((error) => `    <li><code>${escapeHtml(error.code)}</code> ${escapeHtml(error.message)}</li>`)
+    .join("\n");
+  return `<!doctype html><meta charset="utf-8"><title>naqsha — render error</title>
+<style>body{font:15px/1.6 ui-sans-serif,system-ui,sans-serif;background:#131417;color:#e7e3dc;margin:0;padding:40px}
+h1{font-size:18px;margin:0 0 12px}code{color:#d08c4a}li{margin:6px 0}</style>
+<h1>naqsha — the diagram did not render</h1><ul>\n${items}\n</ul>`;
+}
+
+const escapeHtml = (value) =>
+  String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
+
+async function cmdServe(tokens) {
+  const { positionals, flags } = parseCommandArgs(tokens, {
+    allow: ["json", "port", "host", "no-watch", "mode"],
+    min: 1,
+    max: 1,
+  });
+  const input = path.resolve(positionals[0]);
+  const host = flags.host || "127.0.0.1";
+  const port = flags.port ?? 4173;
+  const mode = flags.mode || "auto";
+  const watch = flags["no-watch"] !== true;
+
+  const state = { html: "", revision: 0, errors: [] };
+
+  const refresh = async () => {
+    const rendered = await renderDocument({ input, mode });
+    if (rendered.ok) {
+      state.html = rendered.html;
+      state.errors = [];
+    } else {
+      state.errors = rendered.errors || [];
+      state.html = errorDocument(state.errors);
+    }
+    state.revision += 1;
+    return rendered.ok;
+  };
+
+  const first = await refresh();
+  if (!first && flags.json) {
+    emitJson(failureReceipt(state.errors));
+  }
+
+  const server = http.createServer((request, response) => {
+    const url = request.url || "/";
+    if (url === "/healthz") {
+      response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+      response.end("ok\n");
+      return;
+    }
+    if (url.startsWith("/__naqsha/rev")) {
+      response.writeHead(200, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
+      response.end(String(state.revision));
+      return;
+    }
+    if (url === "/" || url.startsWith("/?")) {
+      response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+      response.end(watch ? injectReload(state.html) : state.html);
+      return;
+    }
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
+    response.end("not found\n");
+  });
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, host, resolve);
+  });
+  const actualPort = server.address().port;
+  const url = `http://${host}:${actualPort}/`;
+
+  if (flags.json) emitJson({ ok: true, input, url, port: actualPort, watch });
+  else {
+    process.stdout.write(`serving ${display(input)} at ${url}${watch ? " (watching for changes)" : ""}\n`);
+    process.stdout.write("press Ctrl+C to stop\n");
+    for (const error of state.errors) process.stderr.write(`  error ${error.code}: ${error.message}\n`);
+  }
+
+  let timer = null;
+  if (watch) {
+    timer = setInterval(async () => {
+      await refresh();
+      if (!flags.json) {
+        const stamp = new Date().toISOString().slice(11, 19);
+        process.stdout.write(`[${stamp}] ${state.errors.length === 0 ? "rendered" : `error: ${state.errors[0].message}`}\n`);
+      }
+    }, 500);
+  }
+
+  await new Promise((resolve) => {
+    process.on("SIGINT", resolve);
+    process.on("SIGTERM", resolve);
+  });
+  if (timer !== null) clearInterval(timer);
+  server.close();
+  return EXIT_OK;
+}
+
+// ---------------------------------------------------------------------------
+// export (svg | png)
+// ---------------------------------------------------------------------------
+
+async function cmdExport(tokens) {
+  const { positionals, flags } = parseCommandArgs(tokens, {
+    allow: ["json", "mode", "width", "height", "format"],
+    min: 2,
+    max: 2,
+  });
+  const input = path.resolve(positionals[0]);
+  const output = path.resolve(positionals[1]);
+  const extension = path.extname(output).toLowerCase().replace(".", "");
+  const format = flags.format || (extension === "png" ? "png" : "svg");
+  const mode = flags.mode || "auto";
+
+  const rendered = await renderDocument({ input, mode });
+  if (!rendered.ok) {
+    if (flags.json) emitJson(failureReceipt(rendered.errors, rendered.warnings || []));
+    else printErrorList(rendered.errors, rendered.warnings || []);
+    return rendered.exitCode || EXIT_FAIL;
+  }
+
+  const chrome = resolveChrome();
+  if (chrome === null) {
+    const error = cliError(
+      "cli/no-chrome",
+      `no usable Chrome/Chromium found: ${chromeFailureDetail()}`,
+      "",
+      `install Chrome/Chromium or set ${NAQSHA_CHROME_ENV}=/path/to/chrome (never the /usr/bin/chromium-browser snap shim), then run naqsha doctor`,
+    );
+    if (flags.json) emitJson(failureReceipt([error]));
+    else printErrorList([error]);
+    return EXIT_FAIL;
+  }
+
+  const outDirectory = path.dirname(output);
+  if (!fs.existsSync(outDirectory) || !fs.statSync(outDirectory).isDirectory()) {
+    const error = cliError("cli/output-dir", `output directory does not exist: ${outDirectory}`, output, `create it first: mkdir -p "${outDirectory}"`);
+    if (flags.json) emitJson(failureReceipt([error]));
+    else printErrorList([error]);
+    return EXIT_FAIL;
+  }
+
+  const work = fs.mkdtempSync(path.join(os.tmpdir(), "naqsha-export-"));
+  const workHtml = path.join(work, "diagram.html");
+  try {
+    if (format === "svg") {
+      const { withInlineScript, extractSvg, looksLikeDiagram } = await import(EXPORT_MODULE.href);
+      fs.writeFileSync(workHtml, withInlineScript(rendered.html));
+      const run = spawnSync(
+        chrome,
+        ["--headless=new", "--no-sandbox", "--hide-scrollbars", "--virtual-time-budget=5000", "--dump-dom", pathToFileURL(workHtml).href],
+        { encoding: "utf8", timeout: 120000, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 },
+      );
+      if (run.error || run.status !== 0) {
+        const error = cliError("cli/export-failed", `chrome could not serialize the diagram: ${run.error ? run.error.message : `exit ${run.status}`}`, "", "run naqsha doctor to check the browser");
+        if (flags.json) emitJson(failureReceipt([error]));
+        else printErrorList([error]);
+        return EXIT_FAIL;
+      }
+      const svg = extractSvg(run.stdout || "");
+      if (svg === null || !looksLikeDiagram(svg)) {
+        const error = cliError("cli/export-empty", "the rendered page produced no diagram SVG", "", "run naqsha render and open the HTML to inspect it");
+        if (flags.json) emitJson(failureReceipt([error]));
+        else printErrorList([error]);
+        return EXIT_FAIL;
+      }
+      atomicWrite(output, svg);
+      if (flags.json) emitJson({ ok: true, input, output, format: "svg", bytes: Buffer.byteLength(svg), nodes: rendered.nodes.length, edges: rendered.edges.length });
+      else process.stdout.write(`exported  ${display(input)} -> ${display(output)} (svg, ${Buffer.byteLength(svg)} bytes, ${rendered.nodes.length} nodes)\n`);
+      return EXIT_OK;
+    }
+
+    fs.writeFileSync(workHtml, rendered.html);
+    const width = flags.width ?? 1440;
+    const height = flags.height ?? 980;
+    const run = spawnSync(
+      chrome,
+      ["--headless=new", "--no-sandbox", "--hide-scrollbars", `--window-size=${width},${height}`, "--virtual-time-budget=4000", `--screenshot=${output}`, pathToFileURL(workHtml).href],
+      { encoding: "utf8", timeout: 120000, stdio: ["ignore", "pipe", "pipe"] },
+    );
+    if (run.error || run.status !== 0 || !fs.existsSync(output)) {
+      const error = cliError("cli/export-failed", `chrome could not render the PNG: ${run.error ? run.error.message : `exit ${run.status}`}`, "", "run naqsha doctor to check the browser");
+      if (flags.json) emitJson(failureReceipt([error]));
+      else printErrorList([error]);
+      return EXIT_FAIL;
+    }
+    const bytes = fs.statSync(output).size;
+    if (flags.json) emitJson({ ok: true, input, output, format: "png", bytes, width, height, nodes: rendered.nodes.length, edges: rendered.edges.length });
+    else process.stdout.write(`exported  ${display(input)} -> ${display(output)} (png ${width}×${height}, ${bytes} bytes)\n`);
+    return EXIT_OK;
+  } finally {
+    try {
+      fs.rmSync(work, { recursive: true, force: true });
+    } catch {
+      /* temp dir cleanup is best-effort */
+    }
+  }
+}
+
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
@@ -1318,6 +1640,14 @@ async function main() {
       return cmdFix(rest);
     case "install-skill":
       return cmdInstallSkill(rest);
+    case "lint":
+      return cmdLint(rest);
+    case "schema":
+      return cmdSchema(rest);
+    case "serve":
+      return cmdServe(rest);
+    case "export":
+      return cmdExport(rest);
     default:
       throw new UsageError(`unknown command "${command}"`);
   }

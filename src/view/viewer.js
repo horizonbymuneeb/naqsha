@@ -124,6 +124,8 @@
   var exportMenu = $("export-menu");
   var exportSvgBtn = $("export-svg");
   var exportPngBtn = $("export-png");
+  var copyPngBtn = $("copy-png");
+  var mmToggleBtn = $("minimap-toggle");
   var exportWebpBtn = $("export-webp"), exportJpegBtn = $("export-jpeg");
   var copyMermaidBtn = $("copy-mermaid"), copyJsonBtn = $("copy-json");
   var findB = $("search-btn"), traceB = $("trace-btn"), linkB = $("copy-link");
@@ -958,6 +960,7 @@
     });
     mmReady = true;
     mm.hidden = false;
+    applyMinimapPreference();
     mmView();
   }
 
@@ -1333,7 +1336,7 @@
 
   /* ---- keyboard help sheet ------------------------------------------- */
 
-  var HELP = "0=fit and reset|+ , -=zoom in / out (wheel zooms at the pointer)|f=focus mode, chrome hidden|Enter=pin the focused node, open the inspector|Esc=close or clear the innermost thing|/=search labels, sublabels, kinds|Ctrl F=in-page search, not the browser findbar|r=trace a shortest route: click start, then target|p=presentation mode with a laser dot|t=start or stop the walkthrough|arrows=pan the minimap, or step the walkthrough|?=this sheet|Ctrl P=print one page";
+  var HELP = "m=minimap on or off|0=fit and reset|+ , -=zoom in / out (wheel zooms at the pointer)|f=focus mode, chrome hidden|Enter=pin the focused node, open the inspector|Esc=close or clear the innermost thing|/=search labels, sublabels, kinds|Ctrl F=in-page search, not the browser findbar|r=trace a shortest route: click start, then target|p=presentation mode with a laser dot|t=start or stop the walkthrough|arrows=pan the minimap, or step the walkthrough|?=this sheet|Ctrl P=print one page";
   var helpOpen = false;
   var helpReturn = null;
 
@@ -1697,6 +1700,75 @@
   }
 
   function exportPng() { exportRaster("png", "image/png"); }
+
+  /* Copy the 2x raster straight to the clipboard, so a diagram can be pasted into
+     a chat or a doc without touching the filesystem. Falls back to a download. */
+  function copyPng() {
+    try {
+      var svgText = buildSvgText();
+      if (!svgText) { exportFailure(); return; }
+      var scale = 2;
+      var width = Math.round(SCENE.width * scale);
+      var height = Math.round(SCENE.height * scale);
+      var image = new Image();
+      image.onload = function () {
+        try {
+          var canvasEl = doc.createElement("canvas");
+          canvasEl.width = width;
+          canvasEl.height = height;
+          var ctx = canvasEl.getContext("2d");
+          if (!ctx) { exportFailure(); return; }
+          ctx.fillStyle = paperColor();
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(image, 0, 0, width, height);
+          canvasEl.toBlob(function (blob) {
+            if (!blob) { exportFailure(); return; }
+            if (!navigator.clipboard || typeof ClipboardItem === "undefined") {
+              download(blob, exportFilename("png"));
+              announce("Clipboard unavailable — PNG downloaded instead.");
+              return;
+            }
+            navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(
+              function () { announce("PNG copied to clipboard."); },
+              function () {
+                download(blob, exportFilename("png"));
+                announce("Clipboard blocked by the browser — PNG downloaded instead.");
+              }
+            );
+          }, "image/png");
+        } catch (err) {
+          exportFailure();
+        }
+      };
+      image.onerror = exportFailure;
+      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgText);
+    } catch (err) {
+      exportFailure();
+    }
+  }
+
+  /* ---- minimap visibility --------------------------------------------- */
+
+  var MM_KEY = "naqsha-minimap";
+
+  function minimapEnabled() {
+    try { return localStorage.getItem(MM_KEY) !== "off"; } catch (err) { return true; }
+  }
+
+  function applyMinimapPreference() {
+    var on = minimapEnabled();
+    if (mm) mm.hidden = !on;
+    if (mmToggleBtn) {
+      sa(mmToggleBtn, "aria-pressed", on ? "true" : "false");
+      mmToggleBtn.classList.toggle("is-off", !on);
+    }
+  }
+
+  function setMinimap(on) {
+    try { localStorage.setItem(MM_KEY, on ? "on" : "off"); } catch (err) { /* private mode */ }
+    applyMinimapPreference();
+    announce(on ? "Minimap shown." : "Minimap hidden.");
+  }
   function exportWebp() { exportRaster("webp", "image/webp", 0.95); }
   function exportJpeg() { exportRaster("jpeg", "image/jpeg", 0.92); }
 
@@ -1738,6 +1810,19 @@
     setExportOpen(false, true);
     exportSvg();
   });
+  if (copyPngBtn) copyPngBtn.addEventListener("click", function (event) {
+    event.preventDefault();
+    setExportOpen(false, false);
+    copyPng();
+  });
+
+  if (mmToggleBtn) {
+    mmToggleBtn.addEventListener("click", function () {
+      setMinimap(!minimapEnabled());
+    });
+    applyMinimapPreference();
+  }
+
   if (exportPngBtn) exportPngBtn.addEventListener("click", function (event) {
     event.stopPropagation();
     setExportOpen(false, true);
@@ -1913,6 +1998,11 @@
       }
     }
 
+    if (event.key === "m" || event.key === "M") {
+      event.preventDefault();
+      setMinimap(!minimapEnabled());
+      return;
+    }
     if (event.key === "0") {
       event.preventDefault();
       resetAll(true);

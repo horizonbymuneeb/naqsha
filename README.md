@@ -168,6 +168,19 @@ naqsha mermaid examples/engine-repo.architecture.json /tmp/engine.mmd
 # 6. export from the page itself: SVG, PNG, WebP, JPEG, Mermaid, JSON
 ```
 
+## Authoring loop
+
+```bash
+naqsha serve diagram.json          # edit the JSON, the browser re-renders itself
+naqsha lint diagram.json           # fix orphans, cycles and unlabeled nodes
+naqsha export diagram.json out.svg # drop a static asset into a README
+naqsha schema > ir.schema.json     # editor autocomplete for the IR
+```
+
+`serve` polls the file's mtime, re-renders on every save and reloads the page; a
+broken edit shows the validation errors in the page instead of a blank screen.
+`lint` exits non-zero on real problems, so it can gate a docs CI job.
+
 ## What the reader gets
 
 | Live in the page (no network, no libs) | |
@@ -210,6 +223,10 @@ and an `aria-live` status line, so it reads in a screen reader too.
 | `naqsha convert file.mmd out.json` | Mermaid flowchart / sequence → IR |
 | `naqsha mermaid in.json out.mmd` | IR → Mermaid |
 | `naqsha fix in.json [--write]` | deterministic repair of a broken candidate |
+| `naqsha lint in.json [--strict]` | structural review: orphans, cycles, unlabeled nodes, readability |
+| `naqsha schema [--out file]` | print or write the JSON Schema for editor autocomplete |
+| `naqsha serve in.json [--port N]` | live preview with auto re-render and browser reload |
+| `naqsha export in.json out.svg\|png` | static asset for a README, slide deck or doc site |
 | `naqsha validate --explain` / `naqsha types` | rule catalog, type catalog |
 | `naqsha demo DIR` / `doctor` / `screenshot in.html out.png` | starter set, environment report, headless capture |
 | `naqsha install-skill [--agent NAME] [--list]` | register the skill into one or all agents |
@@ -220,7 +237,7 @@ Every artifact in `docs/` is produced by the same commands the README shows, and
 every claim above is gated:
 
 ```bash
-node --test test/                  # 163 unit tests: validator, CLI, render, all ten layouts, diff, convert, repair
+npm test                           # 175 unit tests: validator, CLI, render, all ten layouts, diff, convert, repair
 ./verify.sh                        # 165 acceptance checks: render every example, size, offline, determinism,
                                    #   layout sanity, real-Chrome overflow/console at 1440×980 and 390×844, screenshots
 node scripts/interact-check.mjs    # 47–55 live-HTML checks per artifact over CDP: focus/dim, tour, search,
