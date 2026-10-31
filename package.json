@@ -54,7 +54,7 @@
     "url": "git+https://github.com/horizonbymuneeb/naqsha.git"
   },
   "scripts": {
-    "test": "node --test \"test/*.test.mjs\"",
+    "test": "node --test test/*.test.mjs",
     "types": "node src/cli/naqsha.mjs types",
     "verify": "node scripts/verify.mjs",
     "interact": "node scripts/interact-check.mjs --html docs/demo-architecture.html",
