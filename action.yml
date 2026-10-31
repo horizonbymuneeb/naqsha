@@ -1,0 +1,117 @@
+name: "naqsha diagrams"
+description: "Render Naqsha JSON diagrams to self-contained HTML, lint them, and fail when committed diagrams are stale"
+author: "Muneeb Anjum"
+branding:
+  icon: "layout"
+  color: "orange"
+
+inputs:
+  input:
+    description: "Glob of Naqsha IR files to render"
+    required: false
+    default: "**/*.naqsha.json"
+  out-dir:
+    description: "Directory for the rendered HTML files"
+    required: false
+    default: "dist/diagrams"
+  mode:
+    description: "auto | light | dark"
+    required: false
+    default: "auto"
+  lint:
+    description: "Run `naqsha lint` on every diagram (fails on real structural errors)"
+    required: false
+    default: "true"
+  lint-strict:
+    description: "Also fail on lint warnings (orphans, unlabeled nodes, cycles)"
+    required: false
+    default: "false"
+  check:
+    description: "Fail when a rendered file differs from the committed one (stale docs gate)"
+    required: false
+    default: "false"
+  commit:
+    description: "Commit the rendered files back to the branch"
+    required: false
+    default: "false"
+  upload-artifact:
+    description: "Upload the rendered diagrams as a workflow artifact"
+    required: false
+    default: "true"
+  version:
+    description: "naqsha-cli version to run (npm dist-tag or exact version)"
+    required: false
+    default: "latest"
+
+outputs:
+  rendered:
+    description: "How many diagrams were rendered"
+    value: ${{ steps.render.outputs.rendered }}
+  stale:
+    description: "How many committed diagrams were out of date (check mode)"
+    value: ${{ steps.render.outputs.stale }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install naqsha-cli
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "${{ inputs.version }}" = "latest" ]; then
+          npm install -g naqsha-cli
+        else
+          npm install -g "naqsha-cli@${{ inputs.version }}"
+        fi
+        naqsha --version
+
+    - id: render
+      name: Render diagrams
+      shell: bash
+      run: |
+        set -uo pipefail
+        ARGS=(--input "${{ inputs.input }}" --out-dir "${{ inputs.out-dir }}" --mode "${{ inputs.mode }}" --json)
+        if [ "${{ inputs.lint }}" = "true" ]; then ARGS+=(--lint); fi
+        if [ "${{ inputs.lint-strict }}" = "true" ]; then ARGS+=(--lint-strict); fi
+        if [ "${{ inputs.check }}" = "true" ]; then ARGS+=(--check); fi
+        if [ "${{ inputs.commit }}" = "true" ]; then ARGS+=(--commit); fi
+
+        set +e
+        node "$GITHUB_ACTION_PATH/scripts/ci-render.mjs" "${ARGS[@]}" > render.json
+        code=$?
+        set -e
+
+        cat render.json | node -e '
+          let raw = "";
+          process.stdin.on("data", (chunk) => (raw += chunk));
+          process.stdin.on("end", () => {
+            try {
+              const receipt = JSON.parse(raw.trim().split("\n").pop());
+              for (const item of receipt.results) {
+                const mark = !item.ok ? "FAIL" : item.stale ? "STALE" : "ok";
+                console.log(`${mark}  ${item.input} -> ${item.output}`);
+                for (const error of item.errors) console.log(`      ${error}`);
+              }
+              console.log("");
+              console.log(`rendered ${receipt.rendered}, failed ${receipt.failed}, stale ${receipt.stale}`);
+              require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `rendered=${receipt.rendered}\nstale=${receipt.stale}\n`);
+            } catch (error) {
+              console.log(raw);
+            }
+          });
+        '
+
+        exit $code
+
+    - name: Upload diagrams
+      if: ${{ inputs.upload-artifact == 'true' && always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: naqsha-diagrams
+        path: ${{ inputs.out-dir }}
+        if-no-files-found: warn

@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **GitHub Action** (`action.yml`): renders every matched IR file, lints it,
+  uploads the diagrams as an artifact, and can gate a docs repo with `check`
+  (fails when a committed diagram is stale) or `commit` the result back.
+- `scripts/ci-render.mjs`: the zero-dependency renderer behind the Action, usable
+  on its own (`--input`, `--out-dir`, `--mode`, `--lint`, `--lint-strict`,
+  `--check`, `--commit`, `--json`).
+- `docs/github-action.md` with the recipes for the three modes.
+- 5 new tests (180 total) covering render, stale detection, lint gating and the
+  Action's declared inputs.
+
+
 ## 1.3.0
 
 ### Added

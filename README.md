@@ -168,6 +168,19 @@ naqsha mermaid examples/engine-repo.architecture.json /tmp/engine.mmd
 # 6. export from the page itself: SVG, PNG, WebP, JPEG, Mermaid, JSON
 ```
 
+## GitHub Action
+
+```yaml
+- uses: horizonbymuneeb/naqsha@v1.4.0
+  with:
+    input: "docs/**/*.naqsha.json"
+    out-dir: "docs/diagrams"
+    check: "true"          # fail when a committed diagram is stale
+```
+
+Renders, lints and uploads on every push; `check` turns "the docs are out of date"
+into a failing build. Details: [docs/github-action.md](docs/github-action.md).
+
 ## Authoring loop
 
 ```bash
