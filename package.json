@@ -1,12 +1,12 @@
 {
-  "name": "naqsha-cli",
-  "version": "1.2.6",
-  "description": "Free diagram skill for every coding agent: one small JSON file in, one self-contained interactive HTML out. Architecture, workflow, sequence and seven more types, walkthrough tours, diagram diffs, path tracing, Mermaid round-trip \u2014 zero dependencies, offline, MIT.",
-  "license": "MIT",
-  "type": "module",
+  "author": "Muneeb Anjum <horizonbymuneeb@users.noreply.github.com>",
   "bin": {
     "naqsha": "src/cli/naqsha.mjs"
   },
+  "bugs": {
+    "url": "https://github.com/horizonbymuneeb/naqsha/issues"
+  },
+  "description": "Free diagram skill for every coding agent: one small JSON file in, one self-contained interactive HTML out. Architecture, workflow, sequence and seven more types, walkthrough tours, diagram diffs, path tracing, Mermaid round-trip \u2014 zero dependencies, offline, MIT.",
   "engines": {
     "node": ">=18"
   },
@@ -23,6 +23,7 @@
     "test/mermaid/",
     "CHANGELOG.md"
   ],
+  "homepage": "https://horizonbymuneeb.github.io/naqsha/",
   "keywords": [
     "diagram",
     "architecture-diagram",
@@ -42,20 +43,24 @@
     "json-to-html",
     "visualization"
   ],
+  "license": "MIT",
+  "name": "naqsha-cli",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/horizonbymuneeb/naqsha.git"
   },
-  "homepage": "https://horizonbymuneeb.github.io/naqsha/",
-  "author": "Muneeb Anjum <horizonbymuneeb@users.noreply.github.com>",
   "scripts": {
     "test": "node --test test/",
     "types": "node src/cli/naqsha.mjs types",
     "verify": "node scripts/verify.mjs",
     "interact": "node scripts/interact-check.mjs --html docs/demo-architecture.html",
-    "demo": "node src/cli/naqsha.mjs demo /tmp/naqsha-demo"
+    "demo": "node src/cli/naqsha.mjs demo /tmp/naqsha-demo",
+    "prepublishOnly": "npm test"
   },
-  "bugs": {
-    "url": "https://github.com/horizonbymuneeb/naqsha/issues"
-  }
+  "type": "module",
+  "version": "1.2.7"
 }

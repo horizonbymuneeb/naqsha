@@ -1,6 +1,6 @@
 # naqsha
 
-[![ci](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/horizonbymuneeb/naqsha?color=B4661F)](https://github.com/horizonbymuneeb/naqsha/releases) [![npm](https://img.shields.io/npm/v/naqsha-cli?color=CB3837&label=npm)](https://www.npmjs.com/package/naqsha-cli) [![license](https://img.shields.io/badge/license-MIT-1D6A62)](LICENSE)
+[![ci](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml/badge.svg)](https://github.com/horizonbymuneeb/naqsha/actions/workflows/ci.yml) [![release](https://img.shields.io/github/v/release/horizonbymuneeb/naqsha?color=B4661F)](https://github.com/horizonbymuneeb/naqsha/releases) [![npm](https://img.shields.io/npm/v/naqsha-cli?color=CB3837&label=npm)](https://www.npmjs.com/package/naqsha-cli) [![downloads](https://img.shields.io/npm/dm/naqsha-cli?color=1D6A62)](https://www.npmjs.com/package/naqsha-cli) [![license](https://img.shields.io/badge/license-MIT-1D6A62)](LICENSE)
 
 **A free diagram skill for every coding agent.** One small JSON file in, one
 self-contained interactive HTML out: no npm install for the reader, no network,

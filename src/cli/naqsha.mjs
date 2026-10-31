@@ -88,8 +88,14 @@ const emitJson = (value) => {
 
 const display = (absolutePath) => path.relative(process.cwd(), absolutePath) || absolutePath;
 
-/** CLI version, read from the VERSION file that ships with the skill. */
+/** CLI version: package.json wins, the VERSION file is the fallback for the skill payload. */
 function readVersion() {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+    if (pkg.version) return String(pkg.version);
+  } catch {
+    /* not installed as a package — fall through */
+  }
   try {
     return fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim() || "dev";
   } catch {

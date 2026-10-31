@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.7
+
+- package.json: `author`, `publishConfig` with `provenance: true`
+- README: npm downloads badge
+- ci: tag-driven publish workflow with npm provenance
+
+
 All notable changes to this project are documented here. Format: Keep a Changelog,
 versioning: semantic-ish (pre-1.0 was an internal MVP).
 

@@ -255,7 +255,8 @@ test("screenshot works on the real pipeline when it is ready", (t) => {
 // version and help surface
 // ---------------------------------------------------------------------------
 
-const expectedVersion = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim();
+const packageVersion = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+const expectedVersion = packageVersion;
 
 test("--version and version print `naqsha <VERSION>` and exit 0", () => {
   for (const args of [["--version"], ["version"]]) {
@@ -266,8 +267,15 @@ test("--version and version print `naqsha <VERSION>` and exit 0", () => {
   }
 });
 
-test("version is read from the VERSION file, not hardcoded", () => {
+test("version comes from package.json, and the VERSION payload file stays in sync", () => {
+  const payloadVersion = fs.readFileSync(path.join(ROOT, "VERSION"), "utf8").trim();
+  assert.equal(payloadVersion, packageVersion, "VERSION file must match package.json");
+
   const project = makeStubProject("version-file", { withLayout: false, withCompose: false });
+  fs.writeFileSync(
+    path.join(project.dir, "package.json"),
+    JSON.stringify({ name: "naqsha-cli", version: "9.9.9-test" }),
+  );
   fs.writeFileSync(path.join(project.dir, "VERSION"), "9.9.9-test\n");
   for (const args of [["--version"], ["version"]]) {
     const run = runEntry(project.cli, args);
